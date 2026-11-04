@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 import { adminListUsers, adminSetUserBanned } from '../../lib/admin'
 
@@ -38,8 +38,10 @@ function AdminUsers() {
             return (
               <tr key={u.id}>
                 <td>
-                  <div className="cell-title">{[u.first_name, u.last_name].filter(Boolean).join(' ') || '—'}</div>
-                  <div className="cell-sub">{u.email}</div>
+                  <Link to={`/admin/user/${u.id}` as any}>
+                    <div className="cell-title">{[u.first_name, u.last_name].filter(Boolean).join(' ') || '—'}</div>
+                    <div className="cell-sub">{u.email}</div>
+                  </Link>
                 </td>
                 <td style={{ textTransform: 'capitalize' }}>{(u.user_type ?? 'user').replace('_', ' ')}</td>
                 <td>{u.profiles}</td>

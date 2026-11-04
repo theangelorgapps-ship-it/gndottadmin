@@ -43,6 +43,7 @@ import { Route as AdminTvShowsRouteImport } from './routes/admin/tv-shows'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as AdminVastAdsRouteImport } from './routes/admin/vast-ads'
 import { Route as AdminVideosRouteImport } from './routes/admin/videos'
+import { Route as AdminUserIdRouteImport } from './routes/admin/user.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -215,6 +216,11 @@ const AdminVideosRoute = AdminVideosRouteImport.update({
   path: '/videos',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminUserIdRoute = AdminUserIdRouteImport.update({
+  id: '/user/$id',
+  path: '/user/$id',
+  getParentRoute: () => AdminRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -251,6 +257,7 @@ export interface FileRoutesByFullPath {
   '/admin/vast-ads': typeof AdminVastAdsRoute
   '/admin/videos': typeof AdminVideosRoute
   '/admin/': typeof AdminIndexRoute
+  '/admin/user/$id': typeof AdminUserIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -286,6 +293,7 @@ export interface FileRoutesByTo {
   '/admin/vast-ads': typeof AdminVastAdsRoute
   '/admin/videos': typeof AdminVideosRoute
   '/admin': typeof AdminIndexRoute
+  '/admin/user/$id': typeof AdminUserIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -323,6 +331,7 @@ export interface FileRoutesById {
   '/admin/vast-ads': typeof AdminVastAdsRoute
   '/admin/videos': typeof AdminVideosRoute
   '/admin/': typeof AdminIndexRoute
+  '/admin/user/$id': typeof AdminUserIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -361,6 +370,7 @@ export interface FileRouteTypes {
     | '/admin/vast-ads'
     | '/admin/videos'
     | '/admin/'
+    | '/admin/user/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -396,6 +406,7 @@ export interface FileRouteTypes {
     | '/admin/vast-ads'
     | '/admin/videos'
     | '/admin'
+    | '/admin/user/$id'
   id:
     | '__root__'
     | '/'
@@ -432,6 +443,7 @@ export interface FileRouteTypes {
     | '/admin/vast-ads'
     | '/admin/videos'
     | '/admin/'
+    | '/admin/user/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -680,6 +692,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminVideosRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/user/$id': {
+      id: '/admin/user/$id'
+      path: '/user/$id'
+      fullPath: '/admin/user/$id'
+      preLoaderRoute: typeof AdminUserIdRouteImport
+      parentRoute: typeof AdminRoute
+    }
   }
 }
 
@@ -715,6 +734,7 @@ interface AdminRouteChildren {
   AdminVastAdsRoute: typeof AdminVastAdsRoute
   AdminVideosRoute: typeof AdminVideosRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  AdminUserIdRoute: typeof AdminUserIdRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
@@ -749,6 +769,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminVastAdsRoute: AdminVastAdsRoute,
   AdminVideosRoute: AdminVideosRoute,
   AdminIndexRoute: AdminIndexRoute,
+  AdminUserIdRoute: AdminUserIdRoute,
 }
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)

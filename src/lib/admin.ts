@@ -578,3 +578,43 @@ export const adminDeleteReview = createServerFn({ method: 'POST' })
     await run(`UPDATE reviews SET deleted_at = datetime('now') WHERE id = ?`, id)
     return { ok: true }
   })
+
+// ---------- user detail ----------
+
+export const adminUserDetail = createServerFn({ method: 'GET' })
+  .validator((id: number) => id)
+  .handler(async ({ data: id }) => {
+    await requireAdmin()
+    const user = await first<any>(
+      `SELECT id, username, first_name, last_name, email, mobile, login_type, file_url, gender, date_of_birth,
+              is_banned, is_subscribe, status, user_type, created_at
+       FROM users WHERE id = ?`,
+      id,
+    )
+    if (!user) throw new Error('User not found')
+    const subscription = await first<any>(
+      `SELECT s.id, s.name, s.status, s.start_date, s.end_date, s.total_amount, s.duration, p.name AS plan_name
+       FROM subscriptions s LEFT JOIN plan p ON p.id = s.plan_id
+       WHERE s.user_id = ? AND s.deleted_at IS NULL ORDER BY s.id DESC LIMIT 1`,
+      id,
+    )
+    const reviews = await all(
+      `SELECT r.id, r.rating, r.review, r.created_at, e.name AS content
+       FROM reviews r LEFT JOIN entertainments e ON e.id = r.entertainment_id
+       WHERE r.user_id = ? AND r.deleted_at IS NULL ORDER BY r.id DESC LIMIT 10`,
+      id,
+    )
+    const watchlistCount = await first<any>(`SELECT COUNT(*) AS c FROM watchlists WHERE user_id = ? AND deleted_at IS NULL`, id)
+    const rents = await all(
+      `SELECT p.id, p.type, p.price, p.view_expiry_date, p.created_at,
+              COALESCE(e.name, v.name, ep.name) AS title
+       FROM pay_per_views p
+       LEFT JOIN entertainments e ON p.type IN ('movie','tvshow') AND e.id = p.movie_id
+       LEFT JOIN videos v ON p.type = 'video' AND v.id = p.movie_id
+       LEFT JOIN episodes ep ON p.type = 'episode' AND ep.id = p.movie_id
+       WHERE p.user_id = ? ORDER BY p.id DESC LIMIT 10`,
+      id,
+    )
+    const profiles = await all(`SELECT id, name, avatar, is_child_profile FROM user_multi_profiles WHERE user_id = ? AND deleted_at IS NULL`, id)
+    return { user, subscription, reviews, watchlistCount: watchlistCount?.c ?? 0, rents, profiles }
+  })
