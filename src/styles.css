@@ -609,3 +609,18 @@ button { font-family: inherit; }
   .account-side { position: static; flex-direction: row; flex-wrap: wrap; }
   .acct-grid { grid-template-columns: 1fr; }
 }
+
+/* --- Admin CRUD modal --- */
+.btn-sm { height: 30px !important; padding: 0 12px !important; font-size: 12px !important; }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(4,6,10,0.7); backdrop-filter: blur(3px); z-index: 200; display: flex; align-items: flex-start; justify-content: center; padding: 48px 16px; overflow-y: auto; }
+.modal-card { background: var(--bg-soft); border: 1px solid var(--line); border-radius: 12px; width: 640px; max-width: 100%; padding: 22px 24px; }
+.modal-card h2 { font-size: 18px; margin-bottom: 16px; }
+.modal-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+.mfield { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: var(--muted); }
+.mfield.span2 { grid-column: span 2; }
+.mfield input, .mfield select, .mfield textarea { background: var(--card); border: 1px solid var(--line); border-radius: 6px; color: var(--text); padding: 9px 10px; font-size: 13.5px; font-family: inherit; }
+.mfield input:focus, .mfield select:focus, .mfield textarea:focus { outline: none; border-color: var(--accent); }
+.img-field { display: flex; align-items: center; gap: 8px; }
+.img-field input { flex: 1; }
+.img-preview { width: 34px; height: 34px; object-fit: cover; border-radius: 5px; border: 1px solid var(--line); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }

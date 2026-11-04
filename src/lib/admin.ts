@@ -445,8 +445,8 @@ const ADMIN_TABLES: Record<string, string> = {
   'tv-category': `SELECT id, name, file_url, status FROM live_tv_category WHERE deleted_at IS NULL ORDER BY name`,
   actors: `SELECT id, name, file_url, designation, status FROM cast_crew WHERE type = 'actor' AND deleted_at IS NULL ORDER BY id LIMIT 300`,
   directors: `SELECT id, name, file_url, designation, status FROM cast_crew WHERE type = 'director' AND deleted_at IS NULL ORDER BY id LIMIT 300`,
-  'vast-ads': `SELECT * FROM vast_ads_setting LIMIT 100`,
-  'custom-ads': `SELECT * FROM custom_ads_setting LIMIT 100`,
+  'vast-ads': `SELECT * FROM vast_ads_setting WHERE deleted_at IS NULL ORDER BY id DESC LIMIT 100`,
+  'custom-ads': `SELECT * FROM custom_ads_setting WHERE deleted_at IS NULL ORDER BY id DESC LIMIT 100`,
   'plan-limits': `SELECT l.id, l.title, l.slug, l.status, (SELECT COUNT(*) FROM planlimitation_mapping m WHERE m.planlimitation_id = l.id) AS mappings FROM planlimitation l WHERE l.deleted_at IS NULL ORDER BY l.id`,
   'rent-history': `SELECT p.id, p.type, p.price, p.view_expiry_date, p.created_at, u.email AS user_email,
                     COALESCE(e.name, v.name, ep.name) AS title
@@ -483,4 +483,98 @@ export const adminTable = createServerFn({ method: 'GET' })
     const sql = ADMIN_TABLES[key]
     if (!sql) throw new Error(`unknown admin table: ${key}`)
     return all(sql).catch(() => [])
+  })
+
+// ---------- generic CRUD (feature-replication of Laravel add/edit/delete) ----------
+
+const CRUD_ENTITIES: Record<string, { table: string; fields: string[]; fixed?: Record<string, any> }> = {
+  seasons: { table: 'seasons', fields: ['name', 'entertainment_id', 'season_number', 'poster_url', 'access', 'price', 'short_desc', 'description', 'status'] },
+  episodes: { table: 'episodes', fields: ['name', 'entertainment_id', 'season_id', 'episode_number', 'duration', 'release_date', 'poster_url', 'video_url_input', 'access', 'price', 'short_desc', 'description', 'status'] },
+  actors: { table: 'cast_crew', fields: ['name', 'designation', 'file_url', 'dob', 'place_of_birth', 'bio', 'status'], fixed: { type: 'actor' } },
+  directors: { table: 'cast_crew', fields: ['name', 'designation', 'file_url', 'dob', 'place_of_birth', 'bio', 'status'], fixed: { type: 'director' } },
+  coupons: { table: 'coupons', fields: ['code', 'description', 'discount_type', 'discount', 'start_date', 'expire_date', 'status'] },
+  banners: { table: 'banners', fields: ['title', 'type', 'type_id', 'banner_for', 'file_url', 'poster_url', 'status'] },
+  faq: { table: 'faqs', fields: ['question', 'answer', 'status'] },
+  tax: { table: 'taxes', fields: ['title', 'type', 'value', 'status'] },
+  pages: { table: 'pages', fields: ['name', 'slug', 'description', 'status'] },
+  onboarding: { table: 'onboardings', fields: ['title', 'description', 'file_url', 'status'] },
+  'plan-limits': { table: 'planlimitation', fields: ['title', 'slug', 'description', 'status'] },
+  'vast-ads': { table: 'vast_ads_setting', fields: ['name', 'type', 'url', 'duration', 'target_type', 'enable_skip', 'skip_after', 'frequency', 'start_date', 'end_date', 'status'] },
+  'custom-ads': { table: 'custom_ads_setting', fields: ['name', 'type', 'url_type', 'placement', 'redirect_url', 'duration', 'skip_enabled', 'skip_after', 'status'] },
+  'tv-category': { table: 'live_tv_category', fields: ['name', 'file_url', 'description', 'status'] },
+  'notification-templates': { table: 'notification_templates', fields: ['name', 'label', 'type', 'description', 'status'] },
+  reviews: { table: 'reviews', fields: [] },
+}
+
+function entityFor(key: string) {
+  const e = CRUD_ENTITIES[key]
+  if (!e) throw new Error(`unknown entity: ${key}`)
+  return e
+}
+
+export const adminOptions = createServerFn({ method: 'GET' }).handler(async () => {
+  await requireAdmin()
+  const shows = await all(`SELECT id, name FROM entertainments WHERE type = 'tvshow' AND deleted_at IS NULL ORDER BY name LIMIT 500`)
+  const seasons = await all(`SELECT id, name, entertainment_id FROM seasons WHERE deleted_at IS NULL ORDER BY id DESC LIMIT 500`)
+  const contents = await all(`SELECT id, name, type FROM entertainments WHERE deleted_at IS NULL ORDER BY name LIMIT 500`)
+  return { shows, seasons, contents }
+})
+
+export const adminGetRow = createServerFn({ method: 'GET' })
+  .validator((d: { entity: string; id: number }) => d)
+  .handler(async ({ data }) => {
+    await requireAdmin()
+    const e = entityFor(data.entity)
+    const row = await first<any>(`SELECT * FROM ${e.table} WHERE id = ?`, data.id)
+    if (!row) throw new Error('not found')
+    const out: Record<string, any> = { id: row.id }
+    for (const f of e.fields) out[f] = row[f]
+    return out
+  })
+
+export const adminUpsertRow = createServerFn({ method: 'POST' })
+  .validator((d: { entity: string; id?: number; values: Record<string, any> }) => d)
+  .handler(async ({ data }) => {
+    await requireAdmin()
+    const e = entityFor(data.entity)
+    const vals: Record<string, any> = {}
+    for (const f of e.fields) {
+      if (f in data.values) {
+        let v = data.values[f]
+        if (typeof v === 'string') v = v.trim()
+        if (v === '') v = null
+        vals[f] = v
+      }
+    }
+    if (Object.keys(vals).length === 0 && !data.id) throw new Error('nothing to save')
+    if (data.id) {
+      const sets = Object.keys(vals).map((k) => `${k} = ?`).join(', ')
+      if (sets) await run(`UPDATE ${e.table} SET ${sets}, updated_at = datetime('now') WHERE id = ?`, ...Object.values(vals), data.id)
+      return { ok: true, id: data.id }
+    }
+    const merged = { ...(e.fixed ?? {}), ...vals }
+    const cols = Object.keys(merged)
+    const res = await run(
+      `INSERT INTO ${e.table} (${cols.join(', ')}, created_at, updated_at) VALUES (${cols.map(() => '?').join(', ')}, datetime('now'), datetime('now'))`,
+      ...Object.values(merged),
+    )
+    return { ok: true, id: (res as any)?.meta?.last_row_id ?? null }
+  })
+
+export const adminDeleteRow = createServerFn({ method: 'POST' })
+  .validator((d: { entity: string; id: number }) => d)
+  .handler(async ({ data }) => {
+    await requireAdmin()
+    const e = entityFor(data.entity)
+    await run(`UPDATE ${e.table} SET deleted_at = datetime('now') WHERE id = ?`, data.id)
+    return { ok: true }
+  })
+
+// reviews: delete-only moderation
+export const adminDeleteReview = createServerFn({ method: 'POST' })
+  .validator((id: number) => id)
+  .handler(async ({ data: id }) => {
+    await requireAdmin()
+    await run(`UPDATE reviews SET deleted_at = datetime('now') WHERE id = ?`, id)
+    return { ok: true }
   })

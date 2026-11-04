@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { adminTable } from '../../lib/admin'
-import { AdminTablePage } from '../../components/AdminTable'
+import { CrudTable } from '../../components/CrudTable'
 
 export const Route = createFileRoute('/admin/faq')({
   loader: async () => await adminTable({ data: 'faq' }),
@@ -9,5 +9,15 @@ export const Route = createFileRoute('/admin/faq')({
 
 function Page() {
   const rows = Route.useLoaderData() as any[]
-  return <AdminTablePage title="FAQ" group="System Setting" rows={rows} columns={[{ key: 'question', label: 'Question' }, { key: 'status', label: 'Status', kind: 'pill' }]} />
+  return (
+    <CrudTable
+      title="FAQ" group="System Setting" entity="faq" rows={rows}
+      columns={[{ key: 'question', label: 'Question' }, { key: 'status', label: 'Status', kind: 'pill' }]}
+      fields={[
+        { key: 'question', label: 'Question', required: true },
+        { key: 'status', label: 'Status', type: 'toggle' },
+        { key: 'answer', label: 'Answer', type: 'textarea' },
+      ]}
+    />
+  )
 }

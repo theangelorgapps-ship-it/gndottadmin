@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { adminTable } from '../../lib/admin'
-import { AdminTablePage } from '../../components/AdminTable'
+import { CrudTable } from '../../components/CrudTable'
 
 export const Route = createFileRoute('/admin/directors')({
   loader: async () => await adminTable({ data: 'directors' }),
@@ -9,5 +9,19 @@ export const Route = createFileRoute('/admin/directors')({
 
 function Page() {
   const rows = Route.useLoaderData() as any[]
-  return <AdminTablePage title="Directors" group="Cast & Crew" rows={rows} columns={[{ key: 'file_url', label: 'Director', kind: 'img' }, { key: 'designation', label: 'Designation' }, { key: 'status', label: 'Status', kind: 'pill' }]} />
+  return (
+    <CrudTable
+      title="Directors" group="Cast & Crew" entity="directors" rows={rows}
+      columns={[{ key: 'file_url', label: 'Director', kind: 'img' }, { key: 'designation', label: 'Designation' }, { key: 'status', label: 'Status', kind: 'pill' }]}
+      fields={[
+        { key: 'name', label: 'Name', required: true },
+        { key: 'designation', label: 'Designation' },
+        { key: 'file_url', label: 'Photo', type: 'image' },
+        { key: 'dob', label: 'Date of Birth', type: 'date' },
+        { key: 'place_of_birth', label: 'Place of Birth' },
+        { key: 'status', label: 'Status', type: 'toggle' },
+        { key: 'bio', label: 'Bio', type: 'textarea' },
+      ]}
+    />
+  )
 }
