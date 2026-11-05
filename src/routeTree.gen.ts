@@ -43,6 +43,8 @@ import { Route as AdminTvShowsRouteImport } from './routes/admin/tv-shows'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as AdminVastAdsRouteImport } from './routes/admin/vast-ads'
 import { Route as AdminVideosRouteImport } from './routes/admin/videos'
+import { Route as ApiUploadRouteImport } from './routes/api/upload'
+import { Route as MediaSplatRouteImport } from './routes/media/$'
 import { Route as AdminUserIdRouteImport } from './routes/admin/user.$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -216,6 +218,16 @@ const AdminVideosRoute = AdminVideosRouteImport.update({
   path: '/videos',
   getParentRoute: () => AdminRoute,
 } as any)
+const ApiUploadRoute = ApiUploadRouteImport.update({
+  id: '/api/upload',
+  path: '/api/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MediaSplatRoute = MediaSplatRouteImport.update({
+  id: '/media/$',
+  path: '/media/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminUserIdRoute = AdminUserIdRouteImport.update({
   id: '/user/$id',
   path: '/user/$id',
@@ -256,6 +268,8 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AdminUsersRoute
   '/admin/vast-ads': typeof AdminVastAdsRoute
   '/admin/videos': typeof AdminVideosRoute
+  '/api/upload': typeof ApiUploadRoute
+  '/media/$': typeof MediaSplatRoute
   '/admin/': typeof AdminIndexRoute
   '/admin/user/$id': typeof AdminUserIdRoute
 }
@@ -292,6 +306,8 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AdminUsersRoute
   '/admin/vast-ads': typeof AdminVastAdsRoute
   '/admin/videos': typeof AdminVideosRoute
+  '/api/upload': typeof ApiUploadRoute
+  '/media/$': typeof MediaSplatRoute
   '/admin': typeof AdminIndexRoute
   '/admin/user/$id': typeof AdminUserIdRoute
 }
@@ -330,6 +346,8 @@ export interface FileRoutesById {
   '/admin/users': typeof AdminUsersRoute
   '/admin/vast-ads': typeof AdminVastAdsRoute
   '/admin/videos': typeof AdminVideosRoute
+  '/api/upload': typeof ApiUploadRoute
+  '/media/$': typeof MediaSplatRoute
   '/admin/': typeof AdminIndexRoute
   '/admin/user/$id': typeof AdminUserIdRoute
 }
@@ -369,6 +387,8 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/vast-ads'
     | '/admin/videos'
+    | '/api/upload'
+    | '/media/$'
     | '/admin/'
     | '/admin/user/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -405,6 +425,8 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/vast-ads'
     | '/admin/videos'
+    | '/api/upload'
+    | '/media/$'
     | '/admin'
     | '/admin/user/$id'
   id:
@@ -442,6 +464,8 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/vast-ads'
     | '/admin/videos'
+    | '/api/upload'
+    | '/media/$'
     | '/admin/'
     | '/admin/user/$id'
   fileRoutesById: FileRoutesById
@@ -450,6 +474,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ApiUploadRoute: typeof ApiUploadRoute
+  MediaSplatRoute: typeof MediaSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -692,6 +718,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminVideosRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/api/upload': {
+      id: '/api/upload'
+      path: '/api/upload'
+      fullPath: '/api/upload'
+      preLoaderRoute: typeof ApiUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/media/$': {
+      id: '/media/$'
+      path: '/media/$'
+      fullPath: '/media/$'
+      preLoaderRoute: typeof MediaSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/user/$id': {
       id: '/admin/user/$id'
       path: '/user/$id'
@@ -778,6 +818,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
   LoginRoute: LoginRoute,
+  ApiUploadRoute: ApiUploadRoute,
+  MediaSplatRoute: MediaSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

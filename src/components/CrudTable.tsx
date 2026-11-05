@@ -38,6 +38,25 @@ export function CrudTable({
   const [editing, setEditing] = useState<Record<string, any> | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [uploading, setUploading] = useState<string | null>(null)
+
+  async function uploadFile(fieldKey: string, file?: File | null) {
+    if (!file) return
+    setUploading(fieldKey)
+    setError(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch('/api/upload', { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? 'Upload failed')
+      setEditing((cur: any) => (cur ? { ...cur, [fieldKey]: data.url } : cur))
+    } catch (e: any) {
+      setError(e?.message ?? 'Upload failed.')
+    } finally {
+      setUploading(null)
+    }
+  }
 
   async function openEdit(id: number) {
     setBusy(true)
@@ -156,6 +175,10 @@ export function CrudTable({
                   ) : f.type === 'image' ? (
                     <span className="img-field">
                       <input type="text" placeholder="image filename or URL" value={editing[f.key] ?? ''} onChange={(e) => setEditing({ ...editing, [f.key]: e.target.value })} />
+                      <label className="btn btn-dark btn-sm upload-btn">
+                        {uploading === f.key ? 'Uploading…' : 'Upload'}
+                        <input type="file" accept="image/*" hidden disabled={busy || uploading === f.key} onChange={(e) => uploadFile(f.key, e.target.files?.[0])} />
+                      </label>
                       {editing[f.key] ? <img src={img(editing[f.key])} alt="" className="img-preview" /> : null}
                     </span>
                   ) : (

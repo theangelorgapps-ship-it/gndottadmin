@@ -48,3 +48,7 @@ export async function setSessionCookie(payload: object) {
 export function clearSessionCookie() {
   deleteCookie(SESSION_COOKIE, { path: '/' })
 }
+
+export async function verifySessionToken(token: string | undefined) {
+  return verify(token)
+}
