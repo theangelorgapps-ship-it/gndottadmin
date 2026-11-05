@@ -42,7 +42,7 @@ export const getAdminStats = createServerFn({ method: 'GET' }).handler(async () 
   await requireAdmin()
   const c = async (sql: string) =>
     (await first<{ n: number }>(sql).catch(() => ({ n: 0 })))?.n ?? 0
-  const [movies, tvshows, videos, channels, users, genres, plans, activeSubs, cast] =
+  const [movies, tvshows, videos, channels, users, genres, plans, activeSubs, cast, soonToExpire, reviews, rentContent] =
     await Promise.all([
       c(`SELECT COUNT(*) n FROM entertainments WHERE type='movie' AND deleted_at IS NULL`),
       c(`SELECT COUNT(*) n FROM entertainments WHERE type='tvshow' AND deleted_at IS NULL`),
@@ -53,16 +53,22 @@ export const getAdminStats = createServerFn({ method: 'GET' }).handler(async () 
       c(`SELECT COUNT(*) n FROM plan WHERE deleted_at IS NULL`),
       c(`SELECT COUNT(*) n FROM subscriptions WHERE status = 'active' AND deleted_at IS NULL`),
       c(`SELECT COUNT(*) n FROM cast_crew WHERE deleted_at IS NULL`),
+      c(`SELECT COUNT(*) n FROM subscriptions WHERE status = 'active' AND deleted_at IS NULL AND end_date <= date('now', '+30 days')`),
+      c(`SELECT COUNT(*) n FROM reviews WHERE deleted_at IS NULL`),
+      c(`SELECT COUNT(*) n FROM pay_per_views`),
     ])
   const revenue = await first<{ total: number }>(
     `SELECT COALESCE(SUM(amount), 0) AS total FROM subscriptions_transactions WHERE payment_status = 'paid'`,
   ).catch(() => ({ total: 0 }))
-  const monthly = async (table: string, where = '') =>
+  const rentRevenue = await first<{ total: number }>(
+    `SELECT COALESCE(SUM(price), 0) AS total FROM pay_per_views`,
+  ).catch(() => ({ total: 0 }))
+  const monthly = async (table: string, where = '', soft = true) =>
     all(
       `SELECT strftime('%Y-%m', created_at) AS m, COUNT(*) AS n FROM ${table}
-       WHERE deleted_at IS NULL AND created_at IS NOT NULL ${where} GROUP BY m ORDER BY m DESC LIMIT 6`,
+       WHERE created_at IS NOT NULL ${soft ? 'AND deleted_at IS NULL' : ''} ${where} GROUP BY m ORDER BY m DESC LIMIT 6`,
     ).catch(() => [])
-  const [usersM, moviesM, tvshowsM, videosM, channelsM, genresM, plansM, subsM, castM] =
+  const [usersM, moviesM, tvshowsM, videosM, channelsM, genresM, plansM, subsM, castM, reviewsM, rentM] =
     await Promise.all([
       monthly('users'),
       monthly('entertainments', `AND type='movie'`),
@@ -73,6 +79,8 @@ export const getAdminStats = createServerFn({ method: 'GET' }).handler(async () 
       monthly('plan'),
       monthly('subscriptions'),
       monthly('cast_crew'),
+      monthly('reviews'),
+      monthly('pay_per_views', '', false),
     ])
   const genreTop = await all(
     `SELECT g.name, COUNT(*) AS n FROM entertainment_gener_mapping m
@@ -91,11 +99,13 @@ export const getAdminStats = createServerFn({ method: 'GET' }).handler(async () 
      ORDER BY t.id DESC LIMIT 6`,
   ).catch(() => [])
   return {
-    counts: { movies, tvshows, videos, channels, users, genres, plans, activeSubs, cast },
+    counts: { movies, tvshows, videos, channels, users, genres, plans, activeSubs, cast, soonToExpire, reviews, rentContent },
     revenue: revenue?.total ?? 0,
+    rentRevenue: rentRevenue?.total ?? 0,
     monthly: {
       users: usersM, movies: moviesM, tvshows: tvshowsM, videos: videosM,
       channels: channelsM, genres: genresM, plans: plansM, activeSubs: subsM, cast: castM,
+      reviews: reviewsM, rentContent: rentM, soonToExpire: subsM,
     },
     genreTop,
     recentUsers,

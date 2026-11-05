@@ -32,13 +32,16 @@ function Ico({ d, size = 17 }: { d: string; size?: number }) {
 const CARDS: { key: string; label: string; to: string; icon: string }[] = [
   { key: 'users', label: 'Total Users', to: '/admin/users', icon: 'users' },
   { key: 'activeSubs', label: 'Total Subscribers', to: '/admin/subscriptions', icon: 'crown' },
+  { key: 'soonToExpire', label: 'Total Soon to Expire', to: '/admin/soon-to-expire', icon: 'layers' },
+  { key: 'reviews', label: 'Total Reviews', to: '/admin/reviews', icon: 'tag' },
+  { key: 'rentContent', label: 'Rent Content', to: '/admin/rent-history', icon: 'play' },
   { key: 'movies', label: 'Movies', to: '/admin/movies', icon: 'film' },
   { key: 'tvshows', label: 'TV Shows', to: '/admin/tv-shows', icon: 'tv' },
   { key: 'videos', label: 'Videos', to: '/admin/videos', icon: 'play' },
   { key: 'channels', label: 'Live Channels', to: '/admin/live-tv', icon: 'radio' },
   { key: 'genres', label: 'Genres', to: '/admin/genres', icon: 'tag' },
   { key: 'plans', label: 'Plans', to: '/admin/plans', icon: 'layers' },
-  { key: 'cast', label: 'Cast & Crew', to: '/admin/movies', icon: 'users' },
+  { key: 'cast', label: 'Cast & Crew', to: '/admin/actors', icon: 'users' },
 ]
 
 function Spark({ series }: { series: { m: string; n: number }[] }) {
@@ -128,12 +131,18 @@ function AdminDashboard() {
                 <span className="num">{(data.counts as any)[c.key] ?? 0}</span>
               </Link>
             ))}
-            <div className="stat-card">
+            <Link to={'/admin/rent-history' as any} className="stat-card">
+              <span className="stat-ico"><Ico d={PATHS.dollar} /></span>
+              <Spark series={data.monthly.rentContent ?? []} />
+              <span className="lbl">Rent Revenue</span>
+              <span className="num">${Number(data.rentRevenue).toFixed(2)}</span>
+            </Link>
+            <Link to={'/admin/subscriptions' as any} className="stat-card">
               <span className="stat-ico"><Ico d={PATHS.dollar} /></span>
               <Spark series={data.monthly.activeSubs ?? []} />
               <span className="lbl">Total Revenue</span>
               <span className="num">${Number(data.revenue).toFixed(2)}</span>
-            </div>
+            </Link>
           </div>
           <div className="admin-2col" style={{ marginTop: 22 }}>
             <div className="panel">
@@ -145,7 +154,7 @@ function AdminDashboard() {
                 <tbody>
                   {data.recentContent.map((m: any) => (
                     <tr key={m.id}>
-                      <td><span className="cell-title">{m.name}</span></td>
+                      <td><Link to={(m.type === 'tvshow' ? '/admin/tv-shows' : '/admin/movies') as any}><span className="cell-title">{m.name}</span></Link></td>
                       <td>{m.type === 'tvshow' ? 'TV Show' : 'Movie'}</td>
                       <td>{m.release_date ? String(m.release_date).slice(0, 10) : '—'}</td>
                       <td><span className={`pill ${m.status == 1 ? 'on' : 'off'}`}>{m.status == 1 ? 'Active' : 'Off'}</span></td>
@@ -160,11 +169,11 @@ function AdminDashboard() {
                 <p style={{ color: 'var(--muted-2)', fontSize: 13 }}>No transactions yet.</p>
               ) : (
                 data.recentTransactions.map((t: any) => (
-                  <div key={t.id} className="setting-row" style={{ marginBottom: 8 }}>
+                  <Link to={'/admin/subscriptions' as any} key={t.id} className="setting-row" style={{ marginBottom: 8, display: 'flex', textDecoration: 'none' }}>
                     <span className="s-name">{t.user_email ?? `user #${t.id}`}</span>
                     <span style={{ fontWeight: 600 }}>${Number(t.amount).toFixed(2)}</span>
                     <span className={`pill ${t.payment_status === 'paid' ? 'on' : 'warn'}`}>{t.payment_status}</span>
-                  </div>
+                  </Link>
                 ))
               )}
             </div>
