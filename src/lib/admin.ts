@@ -1,4 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
+import { env } from 'cloudflare:workers'
 import { getSession } from './session.server'
 import { all, first, run } from './db'
 
@@ -38,81 +39,89 @@ export const getAdminSession = createServerFn({ method: 'GET' }).handler(async (
 
 // ---------- dashboard ----------
 
-export const getAdminStats = createServerFn({ method: 'GET' }).handler(async () => {
-  await requireAdmin()
-  const c = async (sql: string) =>
-    (await first<{ n: number }>(sql).catch(() => ({ n: 0 })))?.n ?? 0
-  const [movies, tvshows, videos, channels, users, genres, plans, activeSubs, cast, soonToExpire, reviews, rentContent] =
-    await Promise.all([
-      c(`SELECT COUNT(*) n FROM entertainments WHERE type='movie' AND deleted_at IS NULL`),
-      c(`SELECT COUNT(*) n FROM entertainments WHERE type='tvshow' AND deleted_at IS NULL`),
-      c(`SELECT COUNT(*) n FROM videos WHERE deleted_at IS NULL`),
-      c(`SELECT COUNT(*) n FROM live_tv_channel WHERE deleted_at IS NULL`),
-      c(`SELECT COUNT(*) n FROM users WHERE deleted_at IS NULL`),
-      c(`SELECT COUNT(*) n FROM genres WHERE deleted_at IS NULL`),
-      c(`SELECT COUNT(*) n FROM plan WHERE deleted_at IS NULL`),
-      c(`SELECT COUNT(*) n FROM subscriptions WHERE status = 'active' AND deleted_at IS NULL`),
-      c(`SELECT COUNT(*) n FROM cast_crew WHERE deleted_at IS NULL`),
-      c(`SELECT COUNT(*) n FROM subscriptions WHERE status = 'active' AND deleted_at IS NULL AND end_date <= date('now', '+30 days')`),
-      c(`SELECT COUNT(*) n FROM reviews WHERE deleted_at IS NULL`),
-      c(`SELECT COUNT(*) n FROM pay_per_views`),
-    ])
-  const revenue = await first<{ total: number }>(
-    `SELECT COALESCE(SUM(amount), 0) AS total FROM subscriptions_transactions WHERE payment_status = 'paid'`,
-  ).catch(() => ({ total: 0 }))
-  const rentRevenue = await first<{ total: number }>(
-    `SELECT COALESCE(SUM(price), 0) AS total FROM pay_per_views`,
-  ).catch(() => ({ total: 0 }))
-  const monthly = async (table: string, where = '', soft = true) =>
-    all(
-      `SELECT strftime('%Y-%m', created_at) AS m, COUNT(*) AS n FROM ${table}
-       WHERE created_at IS NOT NULL ${soft ? 'AND deleted_at IS NULL' : ''} ${where} GROUP BY m ORDER BY m DESC LIMIT 6`,
+export const getAdminStats = createServerFn({ method: 'GET' })
+  .validator((d?: { from?: string; to?: string }) => d ?? {})
+  .handler(async ({ data: range }) => {
+    await requireAdmin()
+    const from = range?.from && /^\d{4}-\d{2}-\d{2}$/.test(range.from) ? range.from : null
+    const to = range?.to && /^\d{4}-\d{2}-\d{2}$/.test(range.to) ? range.to : null
+    const dateClause = (col = 'created_at') =>
+      `${from ? ` AND date(${col}) >= '${from}'` : ''}${to ? ` AND date(${col}) <= '${to}'` : ''}`
+    const c = async (sql: string) =>
+      (await first<{ n: number }>(sql).catch(() => ({ n: 0 })))?.n ?? 0
+    const [movies, tvshows, videos, channels, users, genres, plans, activeSubs, cast, soonToExpire, reviews, rentContent] =
+      await Promise.all([
+        c(`SELECT COUNT(*) n FROM entertainments WHERE type='movie' AND deleted_at IS NULL${dateClause()}`),
+        c(`SELECT COUNT(*) n FROM entertainments WHERE type='tvshow' AND deleted_at IS NULL${dateClause()}`),
+        c(`SELECT COUNT(*) n FROM videos WHERE deleted_at IS NULL${dateClause()}`),
+        c(`SELECT COUNT(*) n FROM live_tv_channel WHERE deleted_at IS NULL${dateClause()}`),
+        c(`SELECT COUNT(*) n FROM users WHERE deleted_at IS NULL${dateClause()}`),
+        c(`SELECT COUNT(*) n FROM genres WHERE deleted_at IS NULL${dateClause()}`),
+        c(`SELECT COUNT(*) n FROM plan WHERE deleted_at IS NULL${dateClause()}`),
+        c(`SELECT COUNT(*) n FROM subscriptions WHERE status = 'active' AND deleted_at IS NULL${dateClause()}`),
+        c(`SELECT COUNT(*) n FROM cast_crew WHERE deleted_at IS NULL${dateClause()}`),
+        c(`SELECT COUNT(*) n FROM subscriptions WHERE status = 'active' AND deleted_at IS NULL AND end_date <= date('now', '+30 days')`),
+        c(`SELECT COUNT(*) n FROM reviews WHERE deleted_at IS NULL${dateClause()}`),
+        c(`SELECT COUNT(*) n FROM pay_per_views WHERE 1=1${dateClause()}`),
+      ])
+    const revenue = await first<{ total: number }>(
+      `SELECT COALESCE(SUM(amount), 0) AS total FROM subscriptions_transactions WHERE payment_status = 'paid'${dateClause()}`,
+    ).catch(() => ({ total: 0 }))
+    const rentRevenue = await first<{ total: number }>(
+      `SELECT COALESCE(SUM(price), 0) AS total FROM pay_per_views WHERE 1=1${dateClause()}`,
+    ).catch(() => ({ total: 0 }))
+    const monthly = async (table: string, where = '', soft = true) =>
+      all(
+        `SELECT strftime('%Y-%m', created_at) AS m, COUNT(*) AS n FROM ${table}
+         WHERE created_at IS NOT NULL ${soft ? 'AND deleted_at IS NULL' : ''} ${where}${dateClause()} GROUP BY m ORDER BY m DESC LIMIT 6`,
+      ).catch(() => [])
+    const [usersM, moviesM, tvshowsM, videosM, channelsM, genresM, plansM, subsM, castM, reviewsM, rentM] =
+      await Promise.all([
+        monthly('users'),
+        monthly('entertainments', `AND type='movie'`),
+        monthly('entertainments', `AND type='tvshow'`),
+        monthly('videos'),
+        monthly('live_tv_channel'),
+        monthly('genres'),
+        monthly('plan'),
+        monthly('subscriptions'),
+        monthly('cast_crew'),
+        monthly('reviews'),
+        monthly('pay_per_views', '', false),
+      ])
+    const genreTop = await all(
+      `SELECT g.name, COUNT(*) AS n FROM entertainment_gener_mapping m
+       JOIN genres g ON g.id = m.genre_id AND g.deleted_at IS NULL
+       GROUP BY g.id ORDER BY n DESC LIMIT 5`,
     ).catch(() => [])
-  const [usersM, moviesM, tvshowsM, videosM, channelsM, genresM, plansM, subsM, castM, reviewsM, rentM] =
-    await Promise.all([
-      monthly('users'),
-      monthly('entertainments', `AND type='movie'`),
-      monthly('entertainments', `AND type='tvshow'`),
-      monthly('videos'),
-      monthly('live_tv_channel'),
-      monthly('genres'),
-      monthly('plan'),
-      monthly('subscriptions'),
-      monthly('cast_crew'),
-      monthly('reviews'),
-      monthly('pay_per_views', '', false),
-    ])
-  const genreTop = await all(
-    `SELECT g.name, COUNT(*) AS n FROM entertainment_gener_mapping m
-     JOIN genres g ON g.id = m.genre_id AND g.deleted_at IS NULL
-     GROUP BY g.id ORDER BY n DESC LIMIT 5`,
-  ).catch(() => [])
-  const recentUsers = await all(
-    `SELECT id, first_name, last_name, email, user_type, created_at FROM users WHERE deleted_at IS NULL ORDER BY id DESC LIMIT 6`,
-  )
-  const recentContent = await all(
-    `SELECT id, name, type, release_date, status FROM entertainments WHERE deleted_at IS NULL ORDER BY id DESC LIMIT 6`,
-  )
-  const recentTransactions = await all(
-    `SELECT t.id, t.amount, t.payment_type, t.payment_status, t.created_at, u.email
-     FROM subscriptions_transactions t LEFT JOIN users u ON u.id = t.user_id
-     ORDER BY t.id DESC LIMIT 6`,
-  ).catch(() => [])
-  return {
-    counts: { movies, tvshows, videos, channels, users, genres, plans, activeSubs, cast, soonToExpire, reviews, rentContent },
-    revenue: revenue?.total ?? 0,
-    rentRevenue: rentRevenue?.total ?? 0,
-    monthly: {
-      users: usersM, movies: moviesM, tvshows: tvshowsM, videos: videosM,
-      channels: channelsM, genres: genresM, plans: plansM, activeSubs: subsM, cast: castM,
-      reviews: reviewsM, rentContent: rentM, soonToExpire: subsM,
-    },
-    genreTop,
-    recentUsers,
-    recentContent,
-    recentTransactions,
-  }
-})
+    const recentUsers = await all(
+      `SELECT id, first_name, last_name, email, user_type, created_at FROM users WHERE deleted_at IS NULL${dateClause()} ORDER BY id DESC LIMIT 6`,
+    )
+    const recentContent = await all(
+      `SELECT id, name, type, release_date, status FROM entertainments WHERE deleted_at IS NULL${dateClause()} ORDER BY id DESC LIMIT 6`,
+    )
+    const recentTransactions = await all(
+      `SELECT t.id, t.amount, t.payment_type, t.payment_status, t.created_at, u.email
+       FROM subscriptions_transactions t LEFT JOIN users u ON u.id = t.user_id
+       WHERE 1=1${dateClause('t.created_at')}
+       ORDER BY t.id DESC LIMIT 6`,
+    ).catch(() => [])
+    return {
+      counts: { movies, tvshows, videos, channels, users, genres, plans, activeSubs, cast, soonToExpire, reviews, rentContent },
+      revenue: revenue?.total ?? 0,
+      rentRevenue: rentRevenue?.total ?? 0,
+      monthly: {
+        users: usersM, movies: moviesM, tvshows: tvshowsM, videos: videosM,
+        channels: channelsM, genres: genresM, plans: plansM, activeSubs: subsM, cast: castM,
+        reviews: reviewsM, rentContent: rentM, soonToExpire: subsM,
+      },
+      genreTop,
+      recentUsers,
+      recentContent,
+      recentTransactions,
+      range: { from, to },
+    }
+  })
 
 // ---------- content CRUD ----------
 
@@ -134,6 +143,7 @@ export interface ContentInput {
   name: string
   type: 'movie' | 'tvshow'
   description?: string
+  short_description?: string
   release_date?: string
   language?: string
   movie_access?: string
@@ -143,7 +153,67 @@ export interface ContentInput {
   status?: number
   poster_url?: string
   thumbnail_url?: string
+  trailer_url?: string
+  trailer_url_type?: string
+  video_upload_type?: string
+  video_url_input?: string
+  bunny_video_url?: string
+  bunny_trailer_url?: string
+  enable_quality?: number
+  enable_subtitle?: number
+  subtitle_file?: string
+  subtitle_language?: string
+  is_default_subtitle?: number
+  is_restricted?: number
+  price?: number | null
+  purchase_type?: string
+  access_duration?: number | null
+  discount?: number | null
+  available_for?: string
+  plan_id?: number | null
+  meta_title?: string
+  meta_keywords?: string
+  meta_description?: string
+  seo_image?: string
+  genre_ids?: number[]
+  cast_ids?: number[]
+  director_ids?: number[]
 }
+
+const CONTENT_WRITABLE = [
+  'name', 'description', 'short_description', 'release_date', 'language', 'movie_access', 'content_rating',
+  'IMDb_rating', 'duration', 'status', 'poster_url', 'thumbnail_url', 'trailer_url', 'trailer_url_type',
+  'video_upload_type', 'video_url_input', 'bunny_video_url', 'bunny_trailer_url', 'enable_quality',
+  'enable_subtitle', 'subtitle_file', 'subtitle_language', 'is_default_subtitle', 'is_restricted',
+  'price', 'purchase_type', 'access_duration', 'discount', 'available_for', 'plan_id',
+  'meta_title', 'meta_keywords', 'meta_description', 'seo_image',
+] as const
+
+export const adminGetContent = createServerFn({ method: 'GET' })
+  .validator((id: number) => id)
+  .handler(async ({ data: id }) => {
+    await requireAdmin()
+    const row = await first<any>(`SELECT * FROM entertainments WHERE id = ? AND deleted_at IS NULL`, id)
+    if (!row) throw new Error('not found')
+    const genres = await all<any>(`SELECT genre_id FROM entertainment_gener_mapping WHERE entertainment_id = ?`, id).catch(() => [])
+    const cast = await all<any>(`SELECT talent_id, type FROM entertainment_talent_mapping WHERE entertainment_id = ?`, id).catch(() => [])
+    return {
+      ...row,
+      genre_ids: genres.map((g) => g.genre_id),
+      cast_ids: cast.filter((c) => c.type !== 'director').map((c) => c.talent_id),
+      director_ids: cast.filter((c) => c.type === 'director').map((c) => c.talent_id),
+    }
+  })
+
+export const adminContentOptions = createServerFn({ method: 'GET' }).handler(async () => {
+  await requireAdmin()
+  const [genres, cast, plans] = await Promise.all([
+    all(`SELECT id, name FROM genres WHERE deleted_at IS NULL ORDER BY name`),
+    all(`SELECT id, name, type FROM cast_crew WHERE deleted_at IS NULL ORDER BY name LIMIT 500`),
+    all(`SELECT id, name FROM plan WHERE deleted_at IS NULL ORDER BY CAST(level AS INTEGER)`).catch(() => []),
+  ])
+  return { genres, cast, plans }
+})
 
 export const adminUpsertContent = createServerFn({ method: 'POST' })
   .validator((d: ContentInput) => d)
@@ -151,50 +221,49 @@ export const adminUpsertContent = createServerFn({ method: 'POST' })
     const admin = await requireAdmin()
     if (!data.name?.trim()) throw new Error('Name is required.')
     if (!['movie', 'tvshow'].includes(data.type)) throw new Error('Type must be movie or tvshow.')
-    if (data.id) {
-      await run(
-        `UPDATE entertainments SET name=?, description=?, release_date=?, language=?, movie_access=?,
-         content_rating=?, IMDb_rating=?, duration=?, status=?, poster_url=?, thumbnail_url=?,
-         updated_by=?, updated_at=datetime('now')
-         WHERE id=? AND deleted_at IS NULL`,
-        data.name.trim(),
-        data.description ?? null,
-        data.release_date ?? null,
-        data.language ?? null,
-        data.movie_access ?? 'free',
-        data.content_rating ?? null,
-        data.IMDb_rating ?? null,
-        data.duration ?? null,
-        data.status ?? 1,
-        data.poster_url ?? null,
-        data.thumbnail_url ?? null,
-        admin.uid,
-        data.id,
-      )
-      return { ok: true, id: data.id }
+    const vals: Record<string, any> = {}
+    for (const f of CONTENT_WRITABLE) {
+      if (f in data) {
+        let v: any = (data as any)[f]
+        if (typeof v === 'string') { v = v.trim(); if (v === '') v = null }
+        vals[f] = v
+      }
     }
-    const res = await run(
-      `INSERT INTO entertainments (name, description, type, release_date, language, movie_access,
-        content_rating, IMDb_rating, duration, status, poster_url, thumbnail_url,
-        slug, created_by, updated_by, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))`,
-      data.name.trim(),
-      data.description ?? null,
-      data.type,
-      data.release_date ?? null,
-      data.language ?? null,
-      data.movie_access ?? 'free',
-      data.content_rating ?? null,
-      data.IMDb_rating ?? null,
-      data.duration ?? null,
-      data.status ?? 1,
-      data.poster_url ?? null,
-      data.thumbnail_url ?? null,
-      data.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
-      admin.uid,
-      admin.uid,
-    )
-    return { ok: true, id: (res as any)?.meta?.last_row_id ?? null }
+    vals.name = data.name.trim()
+    let id = data.id
+    if (id) {
+      const sets = Object.keys(vals).map((k) => `${k} = ?`).join(', ')
+      await run(
+        `UPDATE entertainments SET ${sets}, updated_by = ?, updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL`,
+        ...Object.values(vals), admin.uid, id,
+      )
+    } else {
+      vals.type = data.type
+      vals.slug = data.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+      vals.created_by = admin.uid
+      vals.updated_by = admin.uid
+      const cols = Object.keys(vals)
+      const res = await run(
+        `INSERT INTO entertainments (${cols.join(', ')}, created_at, updated_at) VALUES (${cols.map(() => '?').join(', ')}, datetime('now'), datetime('now'))`,
+        ...Object.values(vals),
+      )
+      id = (res as any)?.meta?.last_row_id ?? null
+    }
+    if (id && (data.genre_ids || data.cast_ids || data.director_ids)) {
+      if (data.genre_ids) {
+        await run(`DELETE FROM entertainment_gener_mapping WHERE entertainment_id = ?`, id).catch(() => null)
+        for (const gid of data.genre_ids)
+          await run(`INSERT INTO entertainment_gener_mapping (entertainment_id, genre_id, created_at, updated_at) VALUES (?,?,datetime('now'),datetime('now'))`, id, gid).catch(() => null)
+      }
+      if (data.cast_ids || data.director_ids) {
+        await run(`DELETE FROM entertainment_talent_mapping WHERE entertainment_id = ?`, id).catch(() => null)
+        for (const tid of data.cast_ids ?? [])
+          await run(`INSERT INTO entertainment_talent_mapping (entertainment_id, talent_id, type, created_at, updated_at) VALUES (?,?,'actor',datetime('now'),datetime('now'))`, id, tid).catch(() => null)
+        for (const tid of data.director_ids ?? [])
+          await run(`INSERT INTO entertainment_talent_mapping (entertainment_id, talent_id, type, created_at, updated_at) VALUES (?,?,'director',datetime('now'),datetime('now'))`, id, tid).catch(() => null)
+      }
+    }
+    return { ok: true, id }
   })
 
 export const adminDeleteContent = createServerFn({ method: 'POST' })
@@ -216,27 +285,53 @@ export const adminListVideos = createServerFn({ method: 'GET' }).handler(async (
 })
 
 export const adminUpsertVideo = createServerFn({ method: 'POST' })
-  .validator((d: { id?: number; name: string; description?: string; duration?: string; release_date?: string; status?: number }) => d)
+  .validator((d: {
+    id?: number; name: string; description?: string; duration?: string; release_date?: string; status?: number
+    poster_url?: string; thumbnail_url?: string; trailer_url?: string; video_url_input?: string; video_upload_type?: string
+    bunny_video_url?: string; access?: string; price?: number | null; enable_subtitle?: number; subtitle_file?: string
+    subtitle_language?: string; meta_title?: string; meta_keywords?: string; meta_description?: string
+  }) => d)
   .handler(async ({ data }) => {
     const admin = await requireAdmin()
     if (!data.name?.trim()) throw new Error('Name is required.')
+    const VCOLS = ['name', 'description', 'duration', 'release_date', 'status', 'poster_url', 'thumbnail_url',
+      'trailer_url', 'video_url_input', 'video_upload_type', 'bunny_video_url', 'access', 'price',
+      'enable_subtitle', 'subtitle_file', 'subtitle_language', 'meta_title', 'meta_keywords', 'meta_description'] as const
+    const vals: Record<string, any> = {}
+    for (const f of VCOLS) {
+      if (f in data) {
+        let v: any = (data as any)[f]
+        if (typeof v === 'string') { v = v.trim(); if (v === '') v = null }
+        vals[f] = v
+      }
+    }
+    vals.name = data.name.trim()
     if (data.id) {
+      const sets = Object.keys(vals).map((k) => `${k} = ?`).join(', ')
       await run(
-        `UPDATE videos SET name=?, description=?, duration=?, release_date=?, status=?, updated_by=?, updated_at=datetime('now') WHERE id=? AND deleted_at IS NULL`,
-        data.name.trim(), data.description ?? null, data.duration ?? null,
-        data.release_date ?? null, data.status ?? 1, admin.uid, data.id,
+        `UPDATE videos SET ${sets}, updated_by = ?, updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL`,
+        ...Object.values(vals), admin.uid, data.id,
       )
       return { ok: true, id: data.id }
     }
+    vals.slug = data.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+    vals.created_by = admin.uid
+    vals.updated_by = admin.uid
+    const cols = Object.keys(vals)
     const res = await run(
-      `INSERT INTO videos (name, description, duration, release_date, status, slug, created_by, updated_by, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))`,
-      data.name.trim(), data.description ?? null, data.duration ?? null,
-      data.release_date ?? null, data.status ?? 1,
-      data.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
-      admin.uid, admin.uid,
+      `INSERT INTO videos (${cols.join(', ')}, created_at, updated_at) VALUES (${cols.map(() => '?').join(', ')}, datetime('now'), datetime('now'))`,
+      ...Object.values(vals),
     )
     return { ok: true, id: (res as any)?.meta?.last_row_id ?? null }
+  })
+
+export const adminGetVideo = createServerFn({ method: 'GET' })
+  .validator((id: number) => id)
+  .handler(async ({ data: id }) => {
+    await requireAdmin()
+    const row = await first<any>(`SELECT * FROM videos WHERE id = ? AND deleted_at IS NULL`, id)
+    if (!row) throw new Error('not found')
+    return row
   })
 
 export const adminDeleteVideo = createServerFn({ method: 'POST' })
@@ -478,6 +573,10 @@ const ADMIN_TABLES: Record<string, string> = {
   pages: `SELECT id, name, slug, status FROM pages WHERE deleted_at IS NULL ORDER BY sequence, id`,
   onboarding: `SELECT id, title, file_url, status FROM onboardings WHERE deleted_at IS NULL ORDER BY id`,
   tax: `SELECT id, title, type, value, status FROM taxes WHERE deleted_at IS NULL ORDER BY id`,
+  languages: `SELECT id, key, value, language, file FROM languages WHERE deleted_at IS NULL ORDER BY id DESC LIMIT 300`,
+  worlds: `SELECT id, name, state_id, status FROM worlds WHERE deleted_at IS NULL ORDER BY id DESC LIMIT 300`,
+  currencies: `SELECT id, currency_name, currency_symbol, currency_code, is_primary FROM currencies WHERE deleted_at IS NULL ORDER BY id`,
+  countries: `SELECT id, code, name, dial_code, currency_code, status FROM countries WHERE deleted_at IS NULL ORDER BY name LIMIT 300`,
   faq: `SELECT id, question, status FROM faqs WHERE deleted_at IS NULL ORDER BY id`,
   'access-control': `SELECT r.id, r.name, r.title, r.is_fixed,
             (SELECT COUNT(*) FROM model_has_roles m WHERE m.role_id = r.id) AS users,
@@ -499,7 +598,7 @@ export const adminTable = createServerFn({ method: 'GET' })
 
 const CRUD_ENTITIES: Record<string, { table: string; fields: string[]; fixed?: Record<string, any> }> = {
   seasons: { table: 'seasons', fields: ['name', 'entertainment_id', 'season_number', 'poster_url', 'access', 'price', 'short_desc', 'description', 'status'] },
-  episodes: { table: 'episodes', fields: ['name', 'entertainment_id', 'season_id', 'episode_number', 'duration', 'release_date', 'poster_url', 'video_url_input', 'access', 'price', 'short_desc', 'description', 'status'] },
+  episodes: { table: 'episodes', fields: ['name', 'entertainment_id', 'season_id', 'episode_number', 'duration', 'release_date', 'poster_url', 'video_url_input', 'video_upload_type', 'bunny_video_url', 'access', 'price', 'short_desc', 'description', 'enable_subtitle', 'subtitle_file', 'subtitle_language', 'meta_title', 'meta_keywords', 'meta_description', 'status'] },
   actors: { table: 'cast_crew', fields: ['name', 'designation', 'file_url', 'dob', 'place_of_birth', 'bio', 'status'], fixed: { type: 'actor' } },
   directors: { table: 'cast_crew', fields: ['name', 'designation', 'file_url', 'dob', 'place_of_birth', 'bio', 'status'], fixed: { type: 'director' } },
   coupons: { table: 'coupons', fields: ['code', 'description', 'discount_type', 'discount', 'start_date', 'expire_date', 'status'] },
@@ -509,8 +608,12 @@ const CRUD_ENTITIES: Record<string, { table: string; fields: string[]; fixed?: R
   pages: { table: 'pages', fields: ['name', 'slug', 'description', 'status'] },
   onboarding: { table: 'onboardings', fields: ['title', 'description', 'file_url', 'status'] },
   'plan-limits': { table: 'planlimitation', fields: ['title', 'slug', 'description', 'status'] },
-  'vast-ads': { table: 'vast_ads_setting', fields: ['name', 'type', 'url', 'duration', 'target_type', 'enable_skip', 'skip_after', 'frequency', 'start_date', 'end_date', 'status'] },
-  'custom-ads': { table: 'custom_ads_setting', fields: ['name', 'type', 'url_type', 'placement', 'redirect_url', 'duration', 'skip_enabled', 'skip_after', 'status'] },
+  'vast-ads': { table: 'vast_ads_setting', fields: ['name', 'type', 'url', 'duration', 'target_type', 'target_selection', 'enable_skip', 'skip_after', 'frequency', 'start_date', 'end_date', 'is_enable', 'status'] },
+  'custom-ads': { table: 'custom_ads_setting', fields: ['name', 'type', 'url_type', 'placement', 'media', 'redirect_url', 'duration', 'skip_enabled', 'skip_after', 'start_date', 'end_date', 'is_enable', 'status'] },
+  languages: { table: 'languages', fields: ['key', 'value', 'language', 'file'] },
+  worlds: { table: 'worlds', fields: ['name', 'state_id', 'status'] },
+  currencies: { table: 'currencies', fields: ['currency_name', 'currency_symbol', 'currency_code', 'is_primary', 'currency_position', 'no_of_decimal', 'thousand_separator', 'decimal_separator'] },
+  countries: { table: 'countries', fields: ['code', 'name', 'dial_code', 'currency_name', 'symbol', 'currency_code', 'status'] },
   'tv-category': { table: 'live_tv_category', fields: ['name', 'file_url', 'description', 'status'] },
   'notification-templates': { table: 'notification_templates', fields: ['name', 'label', 'type', 'description', 'status'] },
   reviews: { table: 'reviews', fields: [] },
@@ -628,3 +731,120 @@ export const adminUserDetail = createServerFn({ method: 'GET' })
     const profiles = await all(`SELECT id, name, avatar, is_child_profile FROM user_multi_profiles WHERE user_id = ? AND deleted_at IS NULL`, id)
     return { user, subscription, reviews, watchlistCount: watchlistCount?.c ?? 0, rents, profiles }
   })
+
+// ---------- R2 media library ----------
+
+export const adminListR2Media = createServerFn({ method: 'GET' }).handler(async () => {
+  await requireAdmin()
+  const bucket = (env as any).MEDIA
+  if (!bucket?.list) return { ok: false as const, error: 'R2 bucket not bound.', objects: [] }
+  const listed = await bucket.list({ limit: 200 })
+  const objects = (listed.objects ?? []).map((o: any) => ({
+    key: o.key,
+    size: o.size,
+    uploaded: o.uploaded ? new Date(o.uploaded).toISOString() : null,
+    etag: o.etag,
+    url: `/media/${o.key}`,
+  }))
+  return { ok: true as const, objects, truncated: listed.truncated ?? false }
+})
+
+export const adminDeleteR2Object = createServerFn({ method: 'POST' })
+  .validator((key: string) => key)
+  .handler(async ({ data: key }) => {
+    await requireAdmin()
+    const bucket = (env as any).MEDIA
+    if (!bucket?.delete) throw new Error('R2 bucket not bound.')
+    await bucket.delete(key)
+    return { ok: true }
+  })
+
+// ---------- roles & permissions ----------
+
+export const adminListPermissions = createServerFn({ method: 'GET' }).handler(async () => {
+  await requireAdmin()
+  return all(`SELECT id, name, is_fixed FROM permissions ORDER BY name`)
+})
+
+export const adminGetRole = createServerFn({ method: 'GET' })
+  .validator((id: number) => id)
+  .handler(async ({ data: id }) => {
+    await requireAdmin()
+    const role = await first<any>(`SELECT id, name, title, is_fixed FROM roles WHERE id = ?`, id)
+    if (!role) throw new Error('Role not found')
+    const perms = await all<any>(`SELECT permission_id FROM role_has_permissions WHERE role_id = ?`, id).catch(() => [])
+    return { ...role, permission_ids: perms.map((p) => p.permission_id) }
+  })
+
+export const adminUpsertRole = createServerFn({ method: 'POST' })
+  .validator((d: { id?: number; name: string; title?: string; permission_ids?: number[] }) => d)
+  .handler(async ({ data }) => {
+    await requireAdmin()
+    if (!data.name?.trim()) throw new Error('Role name is required.')
+    const name = data.name.trim().toLowerCase().replace(/\s+/g, '_')
+    let id = data.id
+    if (id) {
+      const role = await first<any>(`SELECT is_fixed FROM roles WHERE id = ?`, id)
+      await run(`UPDATE roles SET name = ?, title = ?, updated_at = datetime('now') WHERE id = ?`, name, data.title ?? name, id)
+      void role
+    } else {
+      const res = await run(
+        `INSERT INTO roles (name, title, guard_name, is_fixed, created_at, updated_at) VALUES (?,?,?,0,datetime('now'),datetime('now'))`,
+        name, data.title ?? data.name.trim(), 'admin',
+      )
+      id = (res as any)?.meta?.last_row_id
+    }
+    if (data.permission_ids && id) {
+      await run(`DELETE FROM role_has_permissions WHERE role_id = ?`, id).catch(() => null)
+      for (const pid of data.permission_ids)
+        await run(`INSERT OR IGNORE INTO role_has_permissions (permission_id, role_id) VALUES (?,?)`, pid, id).catch(() => null)
+    }
+    return { ok: true, id }
+  })
+
+export const adminDeleteRole = createServerFn({ method: 'POST' })
+  .validator((id: number) => id)
+  .handler(async ({ data: id }) => {
+    await requireAdmin()
+    const role = await first<any>(`SELECT is_fixed, name FROM roles WHERE id = ?`, id)
+    if (!role) throw new Error('Role not found')
+    if (role.is_fixed) throw new Error('This is a fixed system role and cannot be deleted.')
+    await run(`DELETE FROM role_has_permissions WHERE role_id = ?`, id).catch(() => null)
+    await run(`DELETE FROM model_has_roles WHERE role_id = ?`, id).catch(() => null)
+    await run(`DELETE FROM roles WHERE id = ?`, id)
+    return { ok: true }
+  })
+
+// ---------- bunny stream config ----------
+
+export const adminBunnyStatus = createServerFn({ method: 'GET' }).handler(async () => {
+  await requireAdmin()
+  const rows = await all(`SELECT name, val FROM settings WHERE name IN ('bunny_library_id', 'bunny_api_key')`)
+  const map: Record<string, string> = {}
+  for (const r of rows as any[]) map[r.name] = r.val ?? ''
+  return {
+    libraryId: map.bunny_library_id || null,
+    hasApiKey: !!map.bunny_api_key,
+    embedBase: map.bunny_library_id ? `https://iframe.mediadelivery.net/embed/${map.bunny_library_id}` : null,
+  }
+})
+
+export const adminBunnyListVideos = createServerFn({ method: 'GET' }).handler(async () => {
+  await requireAdmin()
+  const rows = await all(`SELECT name, val FROM settings WHERE name IN ('bunny_library_id', 'bunny_api_key')`)
+  const map: Record<string, string> = {}
+  for (const r of rows as any[]) map[r.name] = r.val ?? ''
+  if (!map.bunny_library_id || !map.bunny_api_key)
+    return { ok: false as const, error: 'Bunny Stream is not configured. Set the Library ID and API Key in Settings → Bunny Stream.', videos: [] }
+  const resp = await fetch(`https://video.bunnycdn.com/library/${map.bunny_library_id}/videos?page=1&itemsPerPage=50&orderBy=date`, {
+    headers: { AccessKey: map.bunny_api_key, accept: 'application/json' },
+  })
+  if (!resp.ok) return { ok: false as const, error: `Bunny API error ${resp.status}: ${await resp.text().then((t) => t.slice(0, 200))}`, videos: [] }
+  const json: any = await resp.json()
+  const videos = (json.items ?? []).map((v: any) => ({
+    id: v.guid, title: v.title, duration: v.length, status: v.status,
+    thumbnail: v.thumbnailFileName ? `https://${map.bunny_library_id}.b-cdn.net/${v.guid}/${v.thumbnailFileName}` : null,
+    dateUploaded: v.dateUploaded,
+  }))
+  return { ok: true as const, videos, totalItems: json.totalItems ?? videos.length }
+})

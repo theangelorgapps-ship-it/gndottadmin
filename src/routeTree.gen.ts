@@ -17,12 +17,15 @@ import { Route as AdminAccessControlRouteImport } from './routes/admin/access-co
 import { Route as AdminActorsRouteImport } from './routes/admin/actors'
 import { Route as AdminBannersRouteImport } from './routes/admin/banners'
 import { Route as AdminConstantsRouteImport } from './routes/admin/constants'
+import { Route as AdminCountriesRouteImport } from './routes/admin/countries'
 import { Route as AdminCouponsRouteImport } from './routes/admin/coupons'
+import { Route as AdminCurrencyRouteImport } from './routes/admin/currency'
 import { Route as AdminCustomAdsRouteImport } from './routes/admin/custom-ads'
 import { Route as AdminDirectorsRouteImport } from './routes/admin/directors'
 import { Route as AdminEpisodesRouteImport } from './routes/admin/episodes'
 import { Route as AdminFaqRouteImport } from './routes/admin/faq'
 import { Route as AdminGenresRouteImport } from './routes/admin/genres'
+import { Route as AdminLanguageRouteImport } from './routes/admin/language'
 import { Route as AdminLiveTvRouteImport } from './routes/admin/live-tv'
 import { Route as AdminMediaLibraryRouteImport } from './routes/admin/media-library'
 import { Route as AdminMoviesRouteImport } from './routes/admin/movies'
@@ -43,6 +46,8 @@ import { Route as AdminTvShowsRouteImport } from './routes/admin/tv-shows'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as AdminVastAdsRouteImport } from './routes/admin/vast-ads'
 import { Route as AdminVideosRouteImport } from './routes/admin/videos'
+import { Route as AdminWorldRouteImport } from './routes/admin/world'
+import { Route as ApiBunnyUploadRouteImport } from './routes/api/bunny-upload'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
 import { Route as MediaSplatRouteImport } from './routes/media/$'
 import { Route as AdminUserIdRouteImport } from './routes/admin/user.$id'
@@ -87,9 +92,19 @@ const AdminConstantsRoute = AdminConstantsRouteImport.update({
   path: '/constants',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminCountriesRoute = AdminCountriesRouteImport.update({
+  id: '/countries',
+  path: '/countries',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminCouponsRoute = AdminCouponsRouteImport.update({
   id: '/coupons',
   path: '/coupons',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminCurrencyRoute = AdminCurrencyRouteImport.update({
+  id: '/currency',
+  path: '/currency',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminCustomAdsRoute = AdminCustomAdsRouteImport.update({
@@ -115,6 +130,11 @@ const AdminFaqRoute = AdminFaqRouteImport.update({
 const AdminGenresRoute = AdminGenresRouteImport.update({
   id: '/genres',
   path: '/genres',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminLanguageRoute = AdminLanguageRouteImport.update({
+  id: '/language',
+  path: '/language',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminLiveTvRoute = AdminLiveTvRouteImport.update({
@@ -218,6 +238,16 @@ const AdminVideosRoute = AdminVideosRouteImport.update({
   path: '/videos',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminWorldRoute = AdminWorldRouteImport.update({
+  id: '/world',
+  path: '/world',
+  getParentRoute: () => AdminRoute,
+} as any)
+const ApiBunnyUploadRoute = ApiBunnyUploadRouteImport.update({
+  id: '/api/bunny-upload',
+  path: '/api/bunny-upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiUploadRoute = ApiUploadRouteImport.update({
   id: '/api/upload',
   path: '/api/upload',
@@ -242,12 +272,15 @@ export interface FileRoutesByFullPath {
   '/admin/actors': typeof AdminActorsRoute
   '/admin/banners': typeof AdminBannersRoute
   '/admin/constants': typeof AdminConstantsRoute
+  '/admin/countries': typeof AdminCountriesRoute
   '/admin/coupons': typeof AdminCouponsRoute
+  '/admin/currency': typeof AdminCurrencyRoute
   '/admin/custom-ads': typeof AdminCustomAdsRoute
   '/admin/directors': typeof AdminDirectorsRoute
   '/admin/episodes': typeof AdminEpisodesRoute
   '/admin/faq': typeof AdminFaqRoute
   '/admin/genres': typeof AdminGenresRoute
+  '/admin/language': typeof AdminLanguageRoute
   '/admin/live-tv': typeof AdminLiveTvRoute
   '/admin/media-library': typeof AdminMediaLibraryRoute
   '/admin/movies': typeof AdminMoviesRoute
@@ -268,6 +301,8 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AdminUsersRoute
   '/admin/vast-ads': typeof AdminVastAdsRoute
   '/admin/videos': typeof AdminVideosRoute
+  '/admin/world': typeof AdminWorldRoute
+  '/api/bunny-upload': typeof ApiBunnyUploadRoute
   '/api/upload': typeof ApiUploadRoute
   '/media/$': typeof MediaSplatRoute
   '/admin/': typeof AdminIndexRoute
@@ -280,12 +315,15 @@ export interface FileRoutesByTo {
   '/admin/actors': typeof AdminActorsRoute
   '/admin/banners': typeof AdminBannersRoute
   '/admin/constants': typeof AdminConstantsRoute
+  '/admin/countries': typeof AdminCountriesRoute
   '/admin/coupons': typeof AdminCouponsRoute
+  '/admin/currency': typeof AdminCurrencyRoute
   '/admin/custom-ads': typeof AdminCustomAdsRoute
   '/admin/directors': typeof AdminDirectorsRoute
   '/admin/episodes': typeof AdminEpisodesRoute
   '/admin/faq': typeof AdminFaqRoute
   '/admin/genres': typeof AdminGenresRoute
+  '/admin/language': typeof AdminLanguageRoute
   '/admin/live-tv': typeof AdminLiveTvRoute
   '/admin/media-library': typeof AdminMediaLibraryRoute
   '/admin/movies': typeof AdminMoviesRoute
@@ -306,6 +344,8 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AdminUsersRoute
   '/admin/vast-ads': typeof AdminVastAdsRoute
   '/admin/videos': typeof AdminVideosRoute
+  '/admin/world': typeof AdminWorldRoute
+  '/api/bunny-upload': typeof ApiBunnyUploadRoute
   '/api/upload': typeof ApiUploadRoute
   '/media/$': typeof MediaSplatRoute
   '/admin': typeof AdminIndexRoute
@@ -320,12 +360,15 @@ export interface FileRoutesById {
   '/admin/actors': typeof AdminActorsRoute
   '/admin/banners': typeof AdminBannersRoute
   '/admin/constants': typeof AdminConstantsRoute
+  '/admin/countries': typeof AdminCountriesRoute
   '/admin/coupons': typeof AdminCouponsRoute
+  '/admin/currency': typeof AdminCurrencyRoute
   '/admin/custom-ads': typeof AdminCustomAdsRoute
   '/admin/directors': typeof AdminDirectorsRoute
   '/admin/episodes': typeof AdminEpisodesRoute
   '/admin/faq': typeof AdminFaqRoute
   '/admin/genres': typeof AdminGenresRoute
+  '/admin/language': typeof AdminLanguageRoute
   '/admin/live-tv': typeof AdminLiveTvRoute
   '/admin/media-library': typeof AdminMediaLibraryRoute
   '/admin/movies': typeof AdminMoviesRoute
@@ -346,6 +389,8 @@ export interface FileRoutesById {
   '/admin/users': typeof AdminUsersRoute
   '/admin/vast-ads': typeof AdminVastAdsRoute
   '/admin/videos': typeof AdminVideosRoute
+  '/admin/world': typeof AdminWorldRoute
+  '/api/bunny-upload': typeof ApiBunnyUploadRoute
   '/api/upload': typeof ApiUploadRoute
   '/media/$': typeof MediaSplatRoute
   '/admin/': typeof AdminIndexRoute
@@ -361,12 +406,15 @@ export interface FileRouteTypes {
     | '/admin/actors'
     | '/admin/banners'
     | '/admin/constants'
+    | '/admin/countries'
     | '/admin/coupons'
+    | '/admin/currency'
     | '/admin/custom-ads'
     | '/admin/directors'
     | '/admin/episodes'
     | '/admin/faq'
     | '/admin/genres'
+    | '/admin/language'
     | '/admin/live-tv'
     | '/admin/media-library'
     | '/admin/movies'
@@ -387,6 +435,8 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/vast-ads'
     | '/admin/videos'
+    | '/admin/world'
+    | '/api/bunny-upload'
     | '/api/upload'
     | '/media/$'
     | '/admin/'
@@ -399,12 +449,15 @@ export interface FileRouteTypes {
     | '/admin/actors'
     | '/admin/banners'
     | '/admin/constants'
+    | '/admin/countries'
     | '/admin/coupons'
+    | '/admin/currency'
     | '/admin/custom-ads'
     | '/admin/directors'
     | '/admin/episodes'
     | '/admin/faq'
     | '/admin/genres'
+    | '/admin/language'
     | '/admin/live-tv'
     | '/admin/media-library'
     | '/admin/movies'
@@ -425,6 +478,8 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/vast-ads'
     | '/admin/videos'
+    | '/admin/world'
+    | '/api/bunny-upload'
     | '/api/upload'
     | '/media/$'
     | '/admin'
@@ -438,12 +493,15 @@ export interface FileRouteTypes {
     | '/admin/actors'
     | '/admin/banners'
     | '/admin/constants'
+    | '/admin/countries'
     | '/admin/coupons'
+    | '/admin/currency'
     | '/admin/custom-ads'
     | '/admin/directors'
     | '/admin/episodes'
     | '/admin/faq'
     | '/admin/genres'
+    | '/admin/language'
     | '/admin/live-tv'
     | '/admin/media-library'
     | '/admin/movies'
@@ -464,6 +522,8 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/vast-ads'
     | '/admin/videos'
+    | '/admin/world'
+    | '/api/bunny-upload'
     | '/api/upload'
     | '/media/$'
     | '/admin/'
@@ -474,6 +534,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ApiBunnyUploadRoute: typeof ApiBunnyUploadRoute
   ApiUploadRoute: typeof ApiUploadRoute
   MediaSplatRoute: typeof MediaSplatRoute
 }
@@ -536,11 +597,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminConstantsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/countries': {
+      id: '/admin/countries'
+      path: '/countries'
+      fullPath: '/admin/countries'
+      preLoaderRoute: typeof AdminCountriesRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/coupons': {
       id: '/admin/coupons'
       path: '/coupons'
       fullPath: '/admin/coupons'
       preLoaderRoute: typeof AdminCouponsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/currency': {
+      id: '/admin/currency'
+      path: '/currency'
+      fullPath: '/admin/currency'
+      preLoaderRoute: typeof AdminCurrencyRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/custom-ads': {
@@ -576,6 +651,13 @@ declare module '@tanstack/react-router' {
       path: '/genres'
       fullPath: '/admin/genres'
       preLoaderRoute: typeof AdminGenresRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/language': {
+      id: '/admin/language'
+      path: '/language'
+      fullPath: '/admin/language'
+      preLoaderRoute: typeof AdminLanguageRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/live-tv': {
@@ -718,6 +800,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminVideosRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/world': {
+      id: '/admin/world'
+      path: '/world'
+      fullPath: '/admin/world'
+      preLoaderRoute: typeof AdminWorldRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/api/bunny-upload': {
+      id: '/api/bunny-upload'
+      path: '/api/bunny-upload'
+      fullPath: '/api/bunny-upload'
+      preLoaderRoute: typeof ApiBunnyUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/upload': {
       id: '/api/upload'
       path: '/api/upload'
@@ -747,12 +843,15 @@ interface AdminRouteChildren {
   AdminActorsRoute: typeof AdminActorsRoute
   AdminBannersRoute: typeof AdminBannersRoute
   AdminConstantsRoute: typeof AdminConstantsRoute
+  AdminCountriesRoute: typeof AdminCountriesRoute
   AdminCouponsRoute: typeof AdminCouponsRoute
+  AdminCurrencyRoute: typeof AdminCurrencyRoute
   AdminCustomAdsRoute: typeof AdminCustomAdsRoute
   AdminDirectorsRoute: typeof AdminDirectorsRoute
   AdminEpisodesRoute: typeof AdminEpisodesRoute
   AdminFaqRoute: typeof AdminFaqRoute
   AdminGenresRoute: typeof AdminGenresRoute
+  AdminLanguageRoute: typeof AdminLanguageRoute
   AdminLiveTvRoute: typeof AdminLiveTvRoute
   AdminMediaLibraryRoute: typeof AdminMediaLibraryRoute
   AdminMoviesRoute: typeof AdminMoviesRoute
@@ -773,6 +872,7 @@ interface AdminRouteChildren {
   AdminUsersRoute: typeof AdminUsersRoute
   AdminVastAdsRoute: typeof AdminVastAdsRoute
   AdminVideosRoute: typeof AdminVideosRoute
+  AdminWorldRoute: typeof AdminWorldRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminUserIdRoute: typeof AdminUserIdRoute
 }
@@ -782,12 +882,15 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminActorsRoute: AdminActorsRoute,
   AdminBannersRoute: AdminBannersRoute,
   AdminConstantsRoute: AdminConstantsRoute,
+  AdminCountriesRoute: AdminCountriesRoute,
   AdminCouponsRoute: AdminCouponsRoute,
+  AdminCurrencyRoute: AdminCurrencyRoute,
   AdminCustomAdsRoute: AdminCustomAdsRoute,
   AdminDirectorsRoute: AdminDirectorsRoute,
   AdminEpisodesRoute: AdminEpisodesRoute,
   AdminFaqRoute: AdminFaqRoute,
   AdminGenresRoute: AdminGenresRoute,
+  AdminLanguageRoute: AdminLanguageRoute,
   AdminLiveTvRoute: AdminLiveTvRoute,
   AdminMediaLibraryRoute: AdminMediaLibraryRoute,
   AdminMoviesRoute: AdminMoviesRoute,
@@ -808,6 +911,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminUsersRoute: AdminUsersRoute,
   AdminVastAdsRoute: AdminVastAdsRoute,
   AdminVideosRoute: AdminVideosRoute,
+  AdminWorldRoute: AdminWorldRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminUserIdRoute: AdminUserIdRoute,
 }
@@ -818,6 +922,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
   LoginRoute: LoginRoute,
+  ApiBunnyUploadRoute: ApiBunnyUploadRoute,
   ApiUploadRoute: ApiUploadRoute,
   MediaSplatRoute: MediaSplatRoute,
 }

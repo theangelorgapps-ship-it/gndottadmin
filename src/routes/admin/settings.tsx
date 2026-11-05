@@ -54,6 +54,7 @@ const TABS: TabDef[] = [
       { type: 'appconfig', name: 'is_google_login', label: 'Google Login', kind: 'toggle' },
       { type: 'appconfig', name: 'is_apple_login', label: 'Apple Login', kind: 'toggle' },
       { type: 'appconfig', name: 'is_otp_login', label: 'OTP Login', kind: 'toggle' },
+      { type: 'appconfig', name: 'google_client_id', label: 'Google Client ID (OAuth web)' },
     ],
   },
   {
@@ -133,6 +134,15 @@ const TABS: TabDef[] = [
       { type: 'storage_settings', name: 'aws_secret_key', label: 'AWS Secret Key' },
       { type: 'storage_settings', name: 'aws_region', label: 'AWS Region' },
       { type: 'storage_settings', name: 'aws_bucket', label: 'AWS Bucket' },
+    ],
+  },
+  {
+    id: 'bunny', label: 'Bunny Stream', icon: 'M5 3l14 9-14 9V3z',
+    note: 'Paste a video ID on any content form to embed it, or upload straight to your Bunny library from the content form.',
+    fields: [
+      { type: 'bunny', name: 'bunny_library_id', label: 'Bunny Stream Library ID' },
+      { type: 'bunny', name: 'bunny_api_key', label: 'Bunny Stream API Key' },
+      { type: 'bunny', name: 'bunny_cdn_hostname', label: 'Bunny CDN Hostname (optional, e.g. vz-xxx.b-cdn.net)' },
     ],
   },
   {

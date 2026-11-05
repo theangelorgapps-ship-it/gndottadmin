@@ -1,8 +1,14 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
+import { useState } from 'react'
 import { getAdminStats } from '../../lib/admin'
 
 export const Route = createFileRoute('/admin/')({
-  loader: async () => await getAdminStats(),
+  validateSearch: (s: Record<string, unknown>) => ({
+    from: typeof s.from === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.from) ? s.from : '',
+    to: s.to && typeof s.to === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.to) ? s.to : '',
+  }),
+  loaderDeps: ({ search }) => ({ from: search.from, to: search.to }),
+  loader: async ({ deps }) => await getAdminStats({ data: { from: deps.from || undefined, to: deps.to || undefined } }),
   component: AdminDashboard,
 })
 
@@ -117,9 +123,35 @@ function GenreDonut({ data }: { data: { name: string; n: number }[] }) {
 
 function AdminDashboard() {
   const data = Route.useLoaderData()
+  const search = Route.useSearch() as any
+  const router = useRouter()
+  const [from, setFrom] = useState<string>(search.from ?? '')
+  const [to, setTo] = useState<string>(search.to ?? '')
   return (
     <div>
       <div className="breadcrumb">Dashboard</div>
+      <form
+        className="date-bar"
+        onSubmit={(e) => {
+          e.preventDefault()
+          router.navigate({ search: { from, to } as any })
+        }}
+      >
+        <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="From date" />
+        <span style={{ color: 'var(--muted-2)' }}>to</span>
+        <input type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="To date" />
+        <button type="submit" className="btn btn-primary btn-xs">Submit</button>
+        <button
+          type="button"
+          className="btn btn-dark btn-xs"
+          onClick={() => { setFrom(''); setTo(''); router.navigate({ search: {} as any }) }}
+        >Reset</button>
+        {(search.from || search.to) && (
+          <span style={{ color: 'var(--muted-2)', fontSize: 13 }}>
+            Filtered: {search.from || '…'} → {search.to || '…'}
+          </span>
+        )}
+      </form>
       <div className="dash-grid">
         <div>
           <div className="stat-grid">
