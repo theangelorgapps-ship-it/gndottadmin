@@ -2,6 +2,8 @@ import { createServerFn } from '@tanstack/react-start'
 import { env } from 'cloudflare:workers'
 import { getSession } from './session.server'
 import { all, first, run } from './db'
+import { groupedType, isSeriesEntity, assertGroupedRecord, validateGroupedValues } from './series-validation'
+import { normalizeBunnyFields } from './bunny'
 
 const ADMIN_TYPES = ['admin', 'demo_admin']
 
@@ -49,10 +51,11 @@ export const getAdminStats = createServerFn({ method: 'GET' })
       `${from ? ` AND date(${col}) >= '${from}'` : ''}${to ? ` AND date(${col}) <= '${to}'` : ''}`
     const c = async (sql: string) =>
       (await first<{ n: number }>(sql).catch(() => ({ n: 0 })))?.n ?? 0
-    const [movies, tvshows, videos, channels, users, genres, plans, activeSubs, cast, soonToExpire, reviews, rentContent] =
+    const [movies, tvshows, teaching, videos, channels, users, genres, plans, activeSubs, cast, soonToExpire, rentContent] =
       await Promise.all([
         c(`SELECT COUNT(*) n FROM entertainments WHERE type='movie' AND deleted_at IS NULL${dateClause()}`),
         c(`SELECT COUNT(*) n FROM entertainments WHERE type='tvshow' AND deleted_at IS NULL${dateClause()}`),
+        c(`SELECT COUNT(*) n FROM entertainments WHERE type='teaching' AND deleted_at IS NULL${dateClause()}`),
         c(`SELECT COUNT(*) n FROM videos WHERE deleted_at IS NULL${dateClause()}`),
         c(`SELECT COUNT(*) n FROM live_tv_channel WHERE deleted_at IS NULL${dateClause()}`),
         c(`SELECT COUNT(*) n FROM users WHERE deleted_at IS NULL${dateClause()}`),
@@ -61,7 +64,6 @@ export const getAdminStats = createServerFn({ method: 'GET' })
         c(`SELECT COUNT(*) n FROM subscriptions WHERE status = 'active' AND deleted_at IS NULL${dateClause()}`),
         c(`SELECT COUNT(*) n FROM cast_crew WHERE deleted_at IS NULL${dateClause()}`),
         c(`SELECT COUNT(*) n FROM subscriptions WHERE status = 'active' AND deleted_at IS NULL AND end_date <= date('now', '+30 days')`),
-        c(`SELECT COUNT(*) n FROM reviews WHERE deleted_at IS NULL${dateClause()}`),
         c(`SELECT COUNT(*) n FROM pay_per_views WHERE 1=1${dateClause()}`),
       ])
     const revenue = await first<{ total: number }>(
@@ -75,18 +77,18 @@ export const getAdminStats = createServerFn({ method: 'GET' })
         `SELECT strftime('%Y-%m', created_at) AS m, COUNT(*) AS n FROM ${table}
          WHERE created_at IS NOT NULL ${soft ? 'AND deleted_at IS NULL' : ''} ${where}${dateClause()} GROUP BY m ORDER BY m DESC LIMIT 6`,
       ).catch(() => [])
-    const [usersM, moviesM, tvshowsM, videosM, channelsM, genresM, plansM, subsM, castM, reviewsM, rentM] =
+    const [usersM, moviesM, tvshowsM, teachingM, videosM, channelsM, genresM, plansM, subsM, castM, rentM] =
       await Promise.all([
         monthly('users'),
         monthly('entertainments', `AND type='movie'`),
         monthly('entertainments', `AND type='tvshow'`),
+        monthly('entertainments', `AND type='teaching'`),
         monthly('videos'),
         monthly('live_tv_channel'),
         monthly('genres'),
         monthly('plan'),
         monthly('subscriptions'),
         monthly('cast_crew'),
-        monthly('reviews'),
         monthly('pay_per_views', '', false),
       ])
     const genreTop = await all(
@@ -107,13 +109,13 @@ export const getAdminStats = createServerFn({ method: 'GET' })
        ORDER BY t.id DESC LIMIT 6`,
     ).catch(() => [])
     return {
-      counts: { movies, tvshows, videos, channels, users, genres, plans, activeSubs, cast, soonToExpire, reviews, rentContent },
+      counts: { movies, tvshows, teaching, videos, channels, users, genres, plans, activeSubs, cast, soonToExpire, rentContent },
       revenue: revenue?.total ?? 0,
       rentRevenue: rentRevenue?.total ?? 0,
       monthly: {
-        users: usersM, movies: moviesM, tvshows: tvshowsM, videos: videosM,
+        users: usersM, movies: moviesM, tvshows: tvshowsM, teaching: teachingM, videos: videosM,
         channels: channelsM, genres: genresM, plans: plansM, activeSubs: subsM, cast: castM,
-        reviews: reviewsM, rentContent: rentM, soonToExpire: subsM,
+        rentContent: rentM, soonToExpire: subsM,
       },
       genreTop,
       recentUsers,
@@ -141,7 +143,7 @@ export const adminListContent = createServerFn({ method: 'GET' })
 export interface ContentInput {
   id?: number
   name: string
-  type: 'movie' | 'tvshow'
+  type: 'movie' | 'tvshow' | 'teaching'
   description?: string
   short_description?: string
   release_date?: string
@@ -219,8 +221,9 @@ export const adminUpsertContent = createServerFn({ method: 'POST' })
   .validator((d: ContentInput) => d)
   .handler(async ({ data }) => {
     const admin = await requireAdmin()
+    data = normalizeBunnyFields(data)
     if (!data.name?.trim()) throw new Error('Name is required.')
-    if (!['movie', 'tvshow'].includes(data.type)) throw new Error('Type must be movie or tvshow.')
+    if (!['movie', 'tvshow', 'teaching'].includes(data.type)) throw new Error('Type must be movie, tvshow or teaching.')
     const vals: Record<string, any> = {}
     for (const f of CONTENT_WRITABLE) {
       if (f in data) {
@@ -293,6 +296,7 @@ export const adminUpsertVideo = createServerFn({ method: 'POST' })
   }) => d)
   .handler(async ({ data }) => {
     const admin = await requireAdmin()
+    data = normalizeBunnyFields(data)
     if (!data.name?.trim()) throw new Error('Name is required.')
     const VCOLS = ['name', 'description', 'duration', 'release_date', 'status', 'poster_url', 'thumbnail_url',
       'trailer_url', 'video_url_input', 'video_upload_type', 'bunny_video_url', 'access', 'price',
@@ -541,12 +545,57 @@ export const adminSaveSetting = createServerFn({ method: 'POST' })
     return { ok: true }
   })
 
+export const adminUpsertSetting = createServerFn({ method: 'POST' })
+  .validator((d: { type: string; name: string; val: string }) => d)
+  .handler(async ({ data }) => {
+    const admin = await requireAdmin()
+    const existing = await first<any>(`SELECT id FROM settings WHERE type = ? AND name = ? AND deleted_at IS NULL`, data.type, data.name)
+    if (existing) {
+      await run(`UPDATE settings SET val = ?, updated_by = ?, updated_at = datetime('now') WHERE id = ?`, String(data.val), admin.uid, existing.id)
+    } else {
+      await run(
+        `INSERT INTO settings (name, val, type, created_by, updated_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+        data.name, String(data.val), data.type, admin.uid, admin.uid,
+      )
+    }
+    return { ok: true }
+  })
+
+export const adminListCurrencies = createServerFn({ method: 'GET' }).handler(async () => {
+  await requireAdmin()
+  return all(`SELECT id, currency_name, currency_code, currency_symbol, is_primary FROM currencies WHERE deleted_at IS NULL ORDER BY id`)
+})
+
+export const adminTestNovu = createServerFn({ method: 'POST' }).handler(async () => {
+  await requireAdmin()
+  const rows = await all<any>(
+    `SELECT name, val FROM settings WHERE name IN ('novu_api_key', 'novu_application_id', 'novu_backend_url') AND deleted_at IS NULL`,
+  )
+  const cfg = Object.fromEntries(rows.map((r) => [r.name, r.val ?? '']))
+  const key = cfg.novu_api_key?.trim()
+  if (!key) throw new Error('Set the Novu Secret Key first, save, then test.')
+  const base = (cfg.novu_backend_url?.trim() || 'https://api.novu.co').replace(/\/$/, '')
+  const res = await fetch(`${base}/v2/workflows?limit=1`, {
+    headers: { Authorization: `ApiKey ${key}`, Accept: 'application/json' },
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`Novu responded ${res.status}: ${body.slice(0, 140) || res.statusText}`)
+  }
+  const json: any = await res.json().catch(() => null)
+  const count = typeof json?.totalCount === 'number' ? json.totalCount : undefined
+  return { ok: true, workflows: count }
+})
+
 // ---------- generic read-only admin tables (Batch F) ----------
 
 const ADMIN_TABLES: Record<string, string> = {
   'media-library': `SELECT id, name, file_name, mime_type, size, created_at FROM media ORDER BY id DESC LIMIT 200`,
   seasons: `SELECT s.id, s.name, s.poster_url, s.status, e.name AS show FROM seasons s LEFT JOIN entertainments e ON e.id = s.entertainment_id WHERE s.deleted_at IS NULL ORDER BY s.id DESC LIMIT 300`,
-  episodes: `SELECT ep.id, ep.name, ep.poster_url, ep.status, ep.duration, e.name AS show, s.name AS season FROM episodes ep LEFT JOIN entertainments e ON e.id = ep.entertainment_id LEFT JOIN seasons s ON s.id = ep.season_id WHERE ep.deleted_at IS NULL ORDER BY ep.id DESC LIMIT 300`,
+  series: `SELECT s.id, s.name, s.season_number, s.poster_url, s.status, e.name AS show FROM seasons s JOIN entertainments e ON e.id = s.entertainment_id WHERE e.type = 'tvshow' AND e.deleted_at IS NULL AND s.deleted_at IS NULL ORDER BY e.name, COALESCE(s.season_number, CAST(s.season_index AS INTEGER)), s.id`,
+  'teaching-volumes': `SELECT s.id, s.name, s.season_number, s.poster_url, s.status, e.name AS show FROM seasons s JOIN entertainments e ON e.id = s.entertainment_id WHERE e.type = 'teaching' AND e.deleted_at IS NULL AND s.deleted_at IS NULL ORDER BY e.name, COALESCE(s.season_number, CAST(s.season_index AS INTEGER)), s.id`,
+  episodes: `SELECT ep.id, ep.name, ep.poster_url, ep.status, ep.duration, e.name AS show, s.name AS season FROM episodes ep LEFT JOIN entertainments e ON e.id = ep.entertainment_id AND e.type = 'tvshow' LEFT JOIN seasons s ON s.id = ep.season_id WHERE ep.deleted_at IS NULL AND e.deleted_at IS NULL AND e.id IS NOT NULL ORDER BY ep.id DESC LIMIT 300`,
+  'teaching-episodes': `SELECT ep.id, ep.name, ep.poster_url, ep.status, ep.duration, e.name AS show, s.name AS season FROM episodes ep LEFT JOIN entertainments e ON e.id = ep.entertainment_id AND e.type = 'teaching' LEFT JOIN seasons s ON s.id = ep.season_id WHERE ep.deleted_at IS NULL AND e.deleted_at IS NULL AND e.id IS NOT NULL ORDER BY ep.id DESC LIMIT 300`,
   'tv-category': `SELECT id, name, file_url, status FROM live_tv_category WHERE deleted_at IS NULL ORDER BY name`,
   actors: `SELECT id, name, file_url, designation, status FROM cast_crew WHERE type = 'actor' AND deleted_at IS NULL ORDER BY id LIMIT 300`,
   directors: `SELECT id, name, file_url, designation, status FROM cast_crew WHERE type = 'director' AND deleted_at IS NULL ORDER BY id LIMIT 300`,
@@ -591,13 +640,16 @@ export const adminTable = createServerFn({ method: 'GET' })
     if (!admin) throw new Error('unauthorized')
     const sql = ADMIN_TABLES[key]
     if (!sql) throw new Error(`unknown admin table: ${key}`)
-    return all(sql).catch(() => [])
+    return groupedType(key) ? all(sql) : all(sql).catch(() => [])
   })
 
 // ---------- generic CRUD (feature-replication of Laravel add/edit/delete) ----------
 
+const SERIES_FIELDS = ['name', 'entertainment_id', 'season_number', 'season_index', 'poster_url', 'access', 'price', 'short_desc', 'description', 'status']
 const CRUD_ENTITIES: Record<string, { table: string; fields: string[]; fixed?: Record<string, any> }> = {
-  seasons: { table: 'seasons', fields: ['name', 'entertainment_id', 'season_number', 'poster_url', 'access', 'price', 'short_desc', 'description', 'status'] },
+  seasons: { table: 'seasons', fields: SERIES_FIELDS },
+  series: { table: 'seasons', fields: SERIES_FIELDS },
+  'teaching-volumes': { table: 'seasons', fields: SERIES_FIELDS },
   episodes: { table: 'episodes', fields: ['name', 'entertainment_id', 'season_id', 'episode_number', 'duration', 'release_date', 'poster_url', 'video_url_input', 'video_upload_type', 'bunny_video_url', 'access', 'price', 'short_desc', 'description', 'enable_subtitle', 'subtitle_file', 'subtitle_language', 'meta_title', 'meta_keywords', 'meta_description', 'status'] },
   actors: { table: 'cast_crew', fields: ['name', 'designation', 'file_url', 'dob', 'place_of_birth', 'bio', 'status'], fixed: { type: 'actor' } },
   directors: { table: 'cast_crew', fields: ['name', 'designation', 'file_url', 'dob', 'place_of_birth', 'bio', 'status'], fixed: { type: 'director' } },
@@ -618,6 +670,7 @@ const CRUD_ENTITIES: Record<string, { table: string; fields: string[]; fixed?: R
   'notification-templates': { table: 'notification_templates', fields: ['name', 'label', 'type', 'description', 'status'] },
   reviews: { table: 'reviews', fields: [] },
 }
+CRUD_ENTITIES['teaching-episodes'] = CRUD_ENTITIES.episodes
 
 function entityFor(key: string) {
   const e = CRUD_ENTITIES[key]
@@ -628,9 +681,10 @@ function entityFor(key: string) {
 export const adminOptions = createServerFn({ method: 'GET' }).handler(async () => {
   await requireAdmin()
   const shows = await all(`SELECT id, name FROM entertainments WHERE type = 'tvshow' AND deleted_at IS NULL ORDER BY name LIMIT 500`)
-  const seasons = await all(`SELECT id, name, entertainment_id FROM seasons WHERE deleted_at IS NULL ORDER BY id DESC LIMIT 500`)
+  const teaching = await all(`SELECT id, name FROM entertainments WHERE type = 'teaching' AND deleted_at IS NULL ORDER BY name LIMIT 500`)
+  const seasons = await all(`SELECT s.id, s.name, s.entertainment_id, e.type, s.season_number FROM seasons s JOIN entertainments e ON e.id = s.entertainment_id WHERE s.deleted_at IS NULL AND e.deleted_at IS NULL AND e.type IN ('tvshow', 'teaching') ORDER BY COALESCE(s.season_number, CAST(s.season_index AS INTEGER)), s.id`)
   const contents = await all(`SELECT id, name, type FROM entertainments WHERE deleted_at IS NULL ORDER BY name LIMIT 500`)
-  return { shows, seasons, contents }
+  return { shows, teaching, seasons, contents }
 })
 
 export const adminGetRow = createServerFn({ method: 'GET' })
@@ -640,6 +694,7 @@ export const adminGetRow = createServerFn({ method: 'GET' })
     const e = entityFor(data.entity)
     const row = await first<any>(`SELECT * FROM ${e.table} WHERE id = ?`, data.id)
     if (!row) throw new Error('not found')
+    await assertGroupedRecord(data.entity, row, first)
     const out: Record<string, any> = { id: row.id }
     for (const f of e.fields) out[f] = row[f]
     return out
@@ -650,6 +705,9 @@ export const adminUpsertRow = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     await requireAdmin()
     const e = entityFor(data.entity)
+    if (e.table === 'episodes') data.values = normalizeBunnyFields(data.values)
+    const current = data.id && groupedType(data.entity) ? await first<any>(`SELECT * FROM ${e.table} WHERE id = ?`, data.id) : null
+    if (data.id && groupedType(data.entity)) await assertGroupedRecord(data.entity, current, first)
     const vals: Record<string, any> = {}
     for (const f of e.fields) {
       if (f in data.values) {
@@ -660,6 +718,7 @@ export const adminUpsertRow = createServerFn({ method: 'POST' })
       }
     }
     if (Object.keys(vals).length === 0 && !data.id) throw new Error('nothing to save')
+    await validateGroupedValues(data.entity, vals, current, first)
     if (data.id) {
       const sets = Object.keys(vals).map((k) => `${k} = ?`).join(', ')
       if (sets) await run(`UPDATE ${e.table} SET ${sets}, updated_at = datetime('now') WHERE id = ?`, ...Object.values(vals), data.id)
@@ -679,6 +738,13 @@ export const adminDeleteRow = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     await requireAdmin()
     const e = entityFor(data.entity)
+    if (groupedType(data.entity)) {
+      const row = await first<any>(`SELECT * FROM ${e.table} WHERE id = ?`, data.id)
+      await assertGroupedRecord(data.entity, row, first)
+      if (isSeriesEntity(data.entity) && await first('SELECT id FROM episodes WHERE season_id = ? AND deleted_at IS NULL LIMIT 1', data.id)) {
+        throw new Error('Reassign or remove the episodes before deleting this series or volume.')
+      }
+    }
     await run(`UPDATE ${e.table} SET deleted_at = datetime('now') WHERE id = ?`, data.id)
     return { ok: true }
   })
@@ -739,7 +805,7 @@ export const adminListR2Media = createServerFn({ method: 'GET' }).handler(async 
   const bucket = (env as any).MEDIA
   if (!bucket?.list) return { ok: false as const, error: 'R2 bucket not bound.', objects: [] }
   const listed = await bucket.list({ limit: 200 })
-  const objects = (listed.objects ?? []).map((o: any) => ({
+  const objects = (listed.objects ?? []).filter((o: any) => !String(o.key).startsWith('private/')).map((o: any) => ({
     key: o.key,
     size: o.size,
     uploaded: o.uploaded ? new Date(o.uploaded).toISOString() : null,
@@ -753,6 +819,7 @@ export const adminDeleteR2Object = createServerFn({ method: 'POST' })
   .validator((key: string) => key)
   .handler(async ({ data: key }) => {
     await requireAdmin()
+    if (key.startsWith('private/')) throw new Error('Account images are managed through the account, not the public media library.')
     const bucket = (env as any).MEDIA
     if (!bucket?.delete) throw new Error('R2 bucket not bound.')
     await bucket.delete(key)

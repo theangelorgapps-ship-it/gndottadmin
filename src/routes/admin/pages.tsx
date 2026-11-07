@@ -9,10 +9,20 @@ export const Route = createFileRoute('/admin/pages')({
 
 function Page() {
   const rows = Route.useLoaderData() as any[]
+
   return (
     <CrudTable
-      title="Pages" group="System Setting" entity="pages" rows={rows}
-      columns={[{ key: 'name', label: 'Name' }, { key: 'slug', label: 'Slug' }, { key: 'status', label: 'Status', kind: 'pill' }]}
+      title="Pages"
+      group="System Setting"
+      entity="pages"
+      rows={rows}
+      singular="page"
+      empty="No custom pages found. Add a page to publish informational content."
+      columns={[
+        { key: 'name', label: 'Name', kind: 'title' },
+        { key: 'slug', label: 'Slug' },
+        { key: 'status', label: 'Status', kind: 'pill' },
+      ]}
       fields={[
         { key: 'name', label: 'Name', required: true },
         { key: 'slug', label: 'Slug', placeholder: 'privacy-policy' },

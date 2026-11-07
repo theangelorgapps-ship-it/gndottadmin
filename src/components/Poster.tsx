@@ -8,7 +8,7 @@ const MANIFEST = manifest as Record<string, string>
 
 export function img(url: string | null | undefined): string {
   if (!url) return DEFAULT_IMG
-  if (url.startsWith('/images/') || url.startsWith('/media/')) return url
+  if (url.startsWith('/images/') || url.startsWith('/media/') || url.startsWith('/api/account-media/')) return url
   if (url.startsWith('http://') || url.startsWith('https://')) {
     // URLs left over from the Laravel seed point at a dead local server — resolve by filename
     if (/^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/.test(url)) {
@@ -74,13 +74,6 @@ export function IconClock({ size = 14 }: { size?: number }) {
     </svg>
   )
 }
-export function IconStar({ size = 14, filled = false }: { size?: number; filled?: boolean }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" aria-hidden>
-      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" strokeLinejoin="round" />
-    </svg>
-  )
-}
 export function IconChevronLeft({ size = 26 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
@@ -103,27 +96,11 @@ export function IconCrown({ size = 14 }: { size?: number }) {
   )
 }
 
-export function ratingOf(item: any): string | null {
-  const r = item.IMDb_rating ?? item.imdb_rating
-  return ratingToStr(r)
-}
-function ratingToStr(r: any): string | null {
-  if (r == null || r === '') return null
-  const n = Number(r)
-  return isNaN(n) ? String(r) : String(Math.round(n * 10) / 10)
-}
-
 export function PosterCard({ item, base }: { item: any; base: string }) {
-  const rating = ratingOf(item)
   const paid = item.movie_access === 'paid' || item.access === 'paid'
   return (
     <Link to={`${base}/${item.id}` as any} className="p-card" params={undefined as never}>
       <span className="p-poster" style={{ backgroundImage: `url(${img(item.poster_url)})` }}>
-        {rating && (
-          <span className="p-rating">
-            <IconStar size={10} /> {rating}
-          </span>
-        )}
         {paid && (
           <span className="p-crown" title="Premium">
             <IconCrown size={11} />
@@ -220,9 +197,6 @@ export function HeroSlider({
           {hero.release_date && <span><IconCalendar /> {String(hero.release_date).slice(0, 4)}</span>}
           {hero.language && <span><IconGlobe /> {hero.language}</span>}
           {hero.duration && <span><IconClock /> {hero.duration}</span>}
-          {(hero.IMDb_rating || hero.imdb_rating) && (
-            <span><IconStar /> {hero.IMDb_rating ?? hero.imdb_rating} (IMDb)</span>
-          )}
         </div>
         <div className="hero-actions">
           <Link to={`${baseFor(hero)}/${hero.id}` as any} className="btn btn-dark btn-circle" aria-label="Add to watchlist">
@@ -248,17 +222,10 @@ export function HeroSlider({
 }
 
 export function Top10Card({ item, rank, base }: { item: any; rank: number; base: string }) {
-  const rating = ratingOf(item)
   return (
     <Link to={`${base}/${item.id}` as any} className="top10-item">
       <span className="top10-rank">{rank}</span>
-      <span className="p-poster" style={{ backgroundImage: `url(${img(item.poster_url)})` }}>
-        {rating && (
-          <span className="p-rating">
-            <IconStar size={10} /> {rating}
-          </span>
-        )}
-      </span>
+      <span className="p-poster" style={{ backgroundImage: `url(${img(item.poster_url)})` }} />
     </Link>
   )
 }

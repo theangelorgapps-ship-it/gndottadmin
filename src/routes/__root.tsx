@@ -7,7 +7,9 @@ export const Route = createRootRoute({
     meta: [
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'Streamit Admin' },
+      { name: 'theme-color', content: '#07111f' },
+      { name: 'description', content: 'GoodNews Halobox content and operations administration.' },
+      { title: 'GoodNews Halobox Admin' },
     ],
   }),
   component: RootComponent,
@@ -23,7 +25,7 @@ function RootComponent() {
 
 function RootDocument({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <head>
         <HeadContent />
       </head>

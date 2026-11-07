@@ -1,5 +1,16 @@
-import { createFileRoute, Outlet, Link, redirect, useRouterState } from '@tanstack/react-router'
+import { createFileRoute, Link, Outlet, redirect, useRouterState } from '@tanstack/react-router'
+import React, { useState } from 'react'
+import {
+  LayoutDashboard, Library, Tags, Church, Tv, ListVideo, PlaySquare,
+  Radio, MonitorPlay, Users, Megaphone, BadgePercent, Crown,
+  Layers, SlidersHorizontal, Receipt, TicketPercent, UserRound, Hourglass,
+  GraduationCap, Image, Braces, Bell, Settings, FileText, Rocket, Percent, CircleHelp,
+  Languages, Globe, DollarSign, MapPinned, ShieldCheck,
+} from 'lucide-react'
 import { getAdminSession } from '../lib/admin'
+import { Sidebar, SidebarBody, SidebarLink } from '../components/ui/sidebar'
+import { ToastProvider } from '../lib/toast'
+import { ConfirmProvider } from '../lib/confirm'
 
 export const Route = createFileRoute('/admin')({
   beforeLoad: async () => {
@@ -10,133 +21,195 @@ export const Route = createFileRoute('/admin')({
   component: AdminLayout,
 })
 
-type SideItem = { to: string; label: string; children?: { to: string; label: string }[] }
+type SideItem = {
+  to: string
+  label: string
+  icon: React.ReactNode
+  children?: { to: string; label: string; icon: React.ReactNode }[]
+}
+
+const ICON = 'h-[1.125rem] w-[1.125rem] flex-shrink-0'
+const SUB_ICON = 'h-4 w-4 flex-shrink-0'
 
 const GROUPS: { title: string; items: SideItem[] }[] = [
   {
-    title: 'Main',
+    title: 'Overview',
     items: [
-      { to: '/admin', label: 'Dashboard' },
-      { to: '/admin/media-library', label: 'Media Library' },
+      { to: '/admin', label: 'Dashboard', icon: <LayoutDashboard className={ICON} /> },
+      { to: '/admin/media-library', label: 'Media Library', icon: <Library className={ICON} /> },
     ],
   },
   {
-    title: 'Media Management',
+    title: 'Content',
     items: [
-      { to: '/admin/genres', label: 'Genres' },
-      { to: '/admin/movies', label: 'Movies' },
+      { to: '/admin/genres', label: 'Genres', icon: <Tags className={ICON} /> },
+      { to: '/admin/movies', label: 'Sermons', icon: <Church className={ICON} /> },
       {
         to: '/admin/tv-shows',
-        label: 'TV Shows',
+        label: 'Shows',
+        icon: <Tv className={ICON} />,
         children: [
-          { to: '/admin/seasons', label: 'Seasons' },
-          { to: '/admin/episodes', label: 'Episodes' },
+          { to: '/admin/series', label: 'Series', icon: <Layers className={SUB_ICON} /> },
+          { to: '/admin/episodes', label: 'Episodes', icon: <ListVideo className={SUB_ICON} /> },
         ],
       },
-      { to: '/admin/videos', label: 'Videos' },
+      {
+        to: '/admin/teaching',
+        label: 'Teachings',
+        icon: <GraduationCap className={ICON} />,
+        children: [
+          { to: '/admin/teaching-volumes', label: 'Volumes (Series)', icon: <Layers className={SUB_ICON} /> },
+          { to: '/admin/teaching-episodes', label: 'Episodes', icon: <ListVideo className={SUB_ICON} /> },
+        ],
+      },
+      { to: '/admin/videos', label: 'Videos', icon: <PlaySquare className={ICON} /> },
       {
         to: '/admin/tv-category',
         label: 'Live TV',
-        children: [{ to: '/admin/live-tv', label: 'TV Channel' }],
+        icon: <Radio className={ICON} />,
+        children: [{ to: '/admin/live-tv', label: 'TV Channels', icon: <MonitorPlay className={SUB_ICON} /> }],
       },
       {
         to: '/admin/actors',
-        label: 'Cast & Crew',
-        children: [{ to: '/admin/directors', label: 'Directors' }],
+        label: 'Personalities',
+        icon: <Users className={ICON} />,
+        children: [{ to: '/admin/directors', label: 'Locations', icon: <MapPinned className={SUB_ICON} /> }],
       },
       {
         to: '/admin/vast-ads',
         label: 'Ads Manager',
-        children: [{ to: '/admin/custom-ads', label: 'Custom Ads' }],
+        icon: <Megaphone className={ICON} />,
+        children: [{ to: '/admin/custom-ads', label: 'Custom Ads', icon: <BadgePercent className={SUB_ICON} /> }],
       },
     ],
   },
   {
-    title: 'Subscription',
+    title: 'Commerce',
     items: [
-      { to: '/admin/subscriptions', label: 'Subscriptions' },
-      { to: '/admin/plans', label: 'Plans' },
-      { to: '/admin/plan-limits', label: 'Plan Limits' },
-      { to: '/admin/rent-history', label: 'Rent History' },
-      { to: '/admin/coupons', label: 'Coupon' },
+      { to: '/admin/subscriptions', label: 'Subscriptions', icon: <Crown className={ICON} /> },
+      { to: '/admin/plans', label: 'Plans', icon: <Layers className={ICON} /> },
+      { to: '/admin/plan-limits', label: 'Plan Limits', icon: <SlidersHorizontal className={ICON} /> },
+      { to: '/admin/rent-history', label: 'Rent History', icon: <Receipt className={ICON} /> },
+      { to: '/admin/coupons', label: 'Coupons', icon: <TicketPercent className={ICON} /> },
     ],
   },
   {
-    title: 'Users',
+    title: 'People',
     items: [
-      { to: '/admin/users', label: 'Users' },
-      { to: '/admin/soon-to-expire', label: 'Soon-to-Expire' },
-      { to: '/admin/reviews', label: 'Reviews' },
+      { to: '/admin/users', label: 'Users', icon: <UserRound className={ICON} /> },
+      { to: '/admin/soon-to-expire', label: 'Soon to Expire', icon: <Hourglass className={ICON} /> },
     ],
   },
   {
-    title: 'System Setting',
+    title: 'Configuration',
     items: [
-      { to: '/admin/banners', label: 'App Banner' },
-      { to: '/admin/constants', label: 'Constants' },
-      { to: '/admin/notification-templates', label: 'Notification Templates' },
-      { to: '/admin/settings', label: 'Settings' },
-      { to: '/admin/pages', label: 'Pages' },
-      { to: '/admin/onboarding', label: 'Onboarding' },
-      { to: '/admin/tax', label: 'Tax' },
-      { to: '/admin/faq', label: 'FAQ' },
-      { to: '/admin/language', label: 'Language Manager' },
-      { to: '/admin/world', label: 'World' },
-      { to: '/admin/currency', label: 'Currency' },
-      { to: '/admin/countries', label: 'Countries' },
-      { to: '/admin/access-control', label: 'Access Control' },
+      { to: '/admin/banners', label: 'App Banners', icon: <Image className={ICON} /> },
+      { to: '/admin/constants', label: 'Constants', icon: <Braces className={ICON} /> },
+      { to: '/admin/notification-templates', label: 'Notification Templates', icon: <Bell className={ICON} /> },
+      { to: '/admin/settings', label: 'Settings', icon: <Settings className={ICON} /> },
+      { to: '/admin/pages', label: 'Pages', icon: <FileText className={ICON} /> },
+      { to: '/admin/onboarding', label: 'Onboarding', icon: <Rocket className={ICON} /> },
+      { to: '/admin/tax', label: 'Tax', icon: <Percent className={ICON} /> },
+      { to: '/admin/faq', label: 'FAQ', icon: <CircleHelp className={ICON} /> },
+      { to: '/admin/language', label: 'Language Manager', icon: <Languages className={ICON} /> },
+      { to: '/admin/world', label: 'World', icon: <Globe className={ICON} /> },
+      { to: '/admin/currency', label: 'Currency', icon: <DollarSign className={ICON} /> },
+      { to: '/admin/countries', label: 'Countries', icon: <MapPinned className={ICON} /> },
+      { to: '/admin/access-control', label: 'Access Control', icon: <ShieldCheck className={ICON} /> },
     ],
   },
 ]
 
+function Logo() {
+  return (
+    <Link to={"/admin" as any} className="admin-brand" aria-label="GoodNews Halobox admin dashboard">
+      <span className="brand-mark" aria-hidden="true">GH</span>
+      <span className="brand-copy">
+        <strong>GoodNews Halobox</strong>
+        <small>Admin workspace</small>
+      </span>
+    </Link>
+  )
+}
+
+function currentSection(pathname: string) {
+  if (pathname.startsWith('/admin/user/')) return 'Users'
+  for (const group of GROUPS) {
+    for (const item of group.items) {
+      const child = item.children?.find((entry) => entry.to === pathname)
+      if (child) return child.label
+      if (item.to === pathname) return item.label
+    }
+  }
+  return 'Admin workspace'
+}
+
 function AdminLayout() {
   const { admin } = Route.useRouteContext()
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const [open, setOpen] = useState(true)
+  const section = currentSection(pathname)
+  const initial = admin.email.trim().charAt(0).toUpperCase() || 'A'
+
   return (
-    <div className="admin-shell">
-      <aside className="admin-side">
-        <div className="brand-row">
-          <img src="/default-image.jpg" alt="Streamit" />
-          <a href="https://gndott.theangelorgapps.workers.dev" className="back-pill" aria-label="Back to site">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
-              <path d="M19 12H5m6-7l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </a>
-        </div>
-        {GROUPS.map((g) => (
-          <div className="side-group" key={g.title}>
-            <div className="side-title">{g.title}</div>
-            {g.items.map((it) => (
-              <div key={it.to}>
-                <Link
-                  to={it.to}
-                  className={pathname === it.to ? 'active' : ''}
-                >
-                  {it.label}
-                </Link>
-                {it.children?.map((c) => (
-                  <Link
-                    key={c.to}
-                    to={c.to}
-                    className={`side-sub ${pathname === c.to ? 'active' : ''}`}
-                  >
-                    {c.label}
-                  </Link>
+    <ToastProvider>
+      <ConfirmProvider>
+        <div className="admin-shell">
+          <a className="skip-link" href="#main-content">Skip to content</a>
+          <Sidebar open={open} setOpen={setOpen}>
+            <SidebarBody className="admin-sidebar">
+              <Logo />
+              <nav className="admin-nav" aria-label="Admin sections">
+                {GROUPS.map((group) => (
+                  <section className="nav-group" key={group.title} aria-label={group.title}>
+                    <h2 className="side-caption">{group.title}</h2>
+                    {group.items.map((item) => {
+                      const childActive = item.children?.some((child) => pathname === child.to) ?? false
+                      return (
+                        <React.Fragment key={item.to}>
+                          <SidebarLink
+                            link={{ label: item.label, href: item.to, icon: item.icon }}
+                            active={childActive}
+                          />
+                          {item.children?.map((child) => (
+                            <SidebarLink
+                              key={child.to}
+                              link={{ label: child.label, href: child.to, icon: child.icon }}
+                              className="sidebar-sub-link"
+                            />
+                          ))}
+                        </React.Fragment>
+                      )
+                    })}
+                  </section>
                 ))}
+              </nav>
+              <div className="sidebar-account">
+                <span className="sidebar-account-icon" aria-hidden="true"><UserRound /></span>
+                <span className="sidebar-account-copy sidebar-label">
+                  <small>Signed in as</small>
+                  <span title={admin.email}>{admin.email}</span>
+                </span>
               </div>
-            ))}
+            </SidebarBody>
+          </Sidebar>
+          <div className="admin-body">
+            <header className="admin-topbar">
+              <div className="topbar-context">
+                <span>GoodNews Halobox</span>
+                <strong>{section}</strong>
+              </div>
+              <div className="topbar-account">
+                <span className="topbar-avatar" aria-hidden="true">{initial}</span>
+                <span className="topbar-email" title={admin.email}>{admin.email}</span>
+              </div>
+            </header>
+            <main className="admin-main" id="main-content">
+              <Outlet />
+            </main>
           </div>
-        ))}
-      </aside>
-      <div className="admin-body">
-        <div className="admin-topbar">
-          <span className="lang-pill">EN</span>
-          <img className="avatar" src="/default-image.jpg" alt={admin.email} />
         </div>
-        <div className="admin-main">
-          <Outlet />
-        </div>
-      </div>
-    </div>
+      </ConfirmProvider>
+    </ToastProvider>
   )
 }

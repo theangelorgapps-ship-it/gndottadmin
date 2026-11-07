@@ -275,7 +275,7 @@ export const getGenreContent = createServerFn({ method: 'GET' })
   .handler(async ({ data: id }) => {
     const genre = await first(`SELECT id, name, description FROM genres WHERE id = ?`, id)
     const items = await all<Content>(
-      `SELECT ${CONTENT_COLS} FROM entertainments e JOIN entertainment_gener_mapping m ON m.entertainment_id = e.id WHERE m.genre_id = ? AND e.status = 1 AND e.deleted_at IS NULL`,
+      `SELECT ${CONTENT_COLS} FROM entertainments WHERE id IN (SELECT entertainment_id FROM entertainment_gener_mapping WHERE genre_id = ?) AND status = 1 AND deleted_at IS NULL`,
       id,
     ).catch(() => [])
     return { genre, items }
@@ -287,11 +287,11 @@ export const login = createServerFn({ method: 'POST' })
   .validator((d: { email: string; password: string }) => d)
   .handler(async ({ data }) => {
     const user = await first<any>(
-      `SELECT id, email, first_name, last_name, password, user_type, status, is_banned FROM users WHERE email = ? AND deleted_at IS NULL`,
+      `SELECT id, email, first_name, last_name, password, user_type, status, is_banned FROM users WHERE lower(email) = ? AND deleted_at IS NULL`,
       data.email.trim().toLowerCase(),
     )
     if (!user) return { ok: false, error: 'No account found for that email.' }
-    if (user.is_banned === 1 || user.status === 0) return { ok: false, error: 'This account is disabled.' }
+    if (Number(user.is_banned) !== 0 || Number(user.status) !== 1) return { ok: false, error: 'This account is disabled.' }
     const hash = String(user.password || '').replace(/^\$2y\$/, '$2b$')
     const valid = bcrypt.compareSync(data.password, hash)
     if (!valid) return { ok: false, error: 'Incorrect password.' }
@@ -312,7 +312,7 @@ export const getSessionUser = createServerFn({ method: 'GET' }).handler(async ()
   const session = await getSession()
   if (!session) return null
   const user = await first<any>(
-    `SELECT id, email, first_name, last_name, mobile, is_subscribe, user_type FROM users WHERE id = ?`,
+    `SELECT id, email, first_name, last_name, mobile, is_subscribe, user_type FROM users WHERE id = ? AND deleted_at IS NULL AND status = 1 AND is_banned = 0`,
     session.uid,
   )
   const profiles = await all(
@@ -389,7 +389,7 @@ export const register = createServerFn({ method: 'POST' })
     if (!data.firstName.trim()) return { ok: false, error: 'First name is required.' }
     if (!email || !email.includes('@')) return { ok: false, error: 'A valid email is required.' }
     if (!data.password || data.password.length < 8) return { ok: false, error: 'Password must be at least 8 characters.' }
-    const existing = await first<any>(`SELECT id FROM users WHERE email = ?`, email)
+    const existing = await first<any>(`SELECT id FROM users WHERE lower(email) = ?`, email)
     if (existing) return { ok: false, error: 'An account with this email already exists.' }
     const hash = bcrypt.hashSync(data.password, 10)
     const res = await run(

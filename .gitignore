@@ -4,3 +4,10 @@ dist/
 *.log
 .DS_Store
 d1-local.sqlite3
+.unlazy/
+.claude/settings.local.json
+.impeccable/live/
+.tmp/
+output/playwright/
+.dev.vars
+.playwright-cli/

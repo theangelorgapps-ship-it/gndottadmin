@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-07T00:00:00Z",
+  "title": "Design System: GoodNews Halobox Admin",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Halobox Blue",
+        "canonical": "#60a5fa",
+        "tonalRamp": ["#10233f", "#17345c", "#1d4e89", "#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#dbeafe"]
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Deep Navy Canvas",
+        "canonical": "#07111f",
+        "tonalRamp": ["#050b14", "#07111f", "#0d1929", "#122238", "#24364d", "#9aabc0", "#d5dfeb", "#f3f7fc"]
+      }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Page heading", "purpose": "Compact operational page titles." },
+      "body": { "displayName": "Operational body", "purpose": "Forms, tables, and readable supporting content." }
+    },
+    "shadows": [
+      { "name": "overlay", "value": "0 12px 36px rgba(0,0,0,.28)", "purpose": "Dialogs, menus, and mobile navigation only." }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(0.4,0,0.2,1)", "purpose": "Short state transitions; disabled under reduced motion." },
+      { "name": "duration-fast", "value": "160ms", "purpose": "Hover, drawer, and dialog feedback." }
+    ],
+    "breakpoints": [
+      { "name": "mobile", "value": "640px" },
+      { "name": "tablet", "value": "900px" },
+      { "name": "desktop", "value": "1200px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single main action in a toolbar or form.",
+      "html": "<button class=\"ds-btn-primary\">Save changes</button>",
+      "css": ".ds-btn-primary{background:#3b82f6;color:#f3f7fc;border:1px solid #60a5fa;border-radius:10px;padding:10px 16px;font:600 12px Inter,system-ui,sans-serif;transition:background 160ms}.ds-btn-primary:hover{background:#2563eb}.ds-btn-primary:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A quiet supporting action.",
+      "html": "<button class=\"ds-btn-secondary\">Cancel</button>",
+      "css": ".ds-btn-secondary{background:#122238;color:#f3f7fc;border:1px solid #24364d;border-radius:10px;padding:10px 16px;font:600 12px Inter,system-ui,sans-serif}.ds-btn-secondary:hover{border-color:#60a5fa}.ds-btn-secondary:focus-visible{outline:2px solid #60a5fa;outline-offset:2px}"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "A labeled operational text field.",
+      "html": "<label class=\"ds-field\">Sermon title<input class=\"ds-input\" value=\"Sunday message\" /></label>",
+      "css": ".ds-field{display:grid;gap:6px;color:#9aabc0;font:600 12px Inter,system-ui,sans-serif}.ds-input{background:#07111f;color:#f3f7fc;border:1px solid #24364d;border-radius:10px;padding:10px 12px;font:400 14px Inter,system-ui,sans-serif}.ds-input:focus{border-color:#60a5fa;outline:2px solid #60a5fa;outline-offset:1px}"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "refersTo": "card",
+      "description": "Text-first publication state.",
+      "html": "<span class=\"ds-status\">Active</span>",
+      "css": ".ds-status{display:inline-flex;background:#0b312b;color:#34d399;border:1px solid #176454;border-radius:999px;padding:3px 9px;font:600 12px Inter,system-ui,sans-serif}"
+    },
+    {
+      "name": "Workspace Panel",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "A flat container for a table, chart, or form section.",
+      "html": "<section class=\"ds-panel\"><h2>Latest content</h2><p>Recently updated Sermons and Teachings.</p></section>",
+      "css": ".ds-panel{background:#0d1929;color:#f3f7fc;border:1px solid #24364d;border-radius:14px;padding:20px}.ds-panel h2{font:600 16px Inter,system-ui,sans-serif;margin:0 0 8px}.ds-panel p{color:#9aabc0;font:400 14px/1.55 Inter,system-ui,sans-serif;margin:0}"
+    },
+    {
+      "name": "Active Navigation Link",
+      "kind": "nav",
+      "refersTo": "button-secondary",
+      "description": "Current destination in the desktop rail or mobile drawer.",
+      "html": "<a class=\"ds-nav\" href=\"#\"><span>Sermons</span><span aria-hidden=\"true\">›</span></a>",
+      "css": ".ds-nav{display:flex;align-items:center;justify-content:space-between;background:#122238;color:#f3f7fc;border:1px solid #31547a;border-radius:10px;padding:10px 12px;text-decoration:none;font:600 14px Inter,system-ui,sans-serif}.ds-nav:hover{border-color:#60a5fa}.ds-nav:focus-visible{outline:2px solid #60a5fa;outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "A calm publishing workspace where every existing operation is clear on any screen.",
+    "overview": "Deep navy establishes a quiet workspace and blue identifies action. Typography stays compact, panels stay flat, and overlays carry the only noticeable elevation. Responsive behavior is structural and accessibility is part of each component contract.",
+    "keyCharacteristics": ["Operational clarity", "Responsive structure", "Preserved workflows", "Accessible state"],
+    "rules": [
+      { "name": "Blue means action", "body": "Use the primary blue for actions, active navigation, links, and focus rather than decoration.", "section": "colors" },
+      { "name": "Compact by default", "body": "Keep body text near 14px and page headings below 28px.", "section": "typography" },
+      { "name": "Overlays only", "body": "Reserve strong shadows and translucency for navigation and temporary overlays.", "section": "elevation" }
+    ],
+    "dos": ["Do preserve all live workflows and use GoodNews Halobox vocabulary.", "Do keep page overflow at zero at 390px."],
+    "donts": ["Don't use Streamit, IMDb, ratings, stars, or legacy red branding.", "Don't add glass, gradients, oversized type, or decorative motion to working panels."]
+  }
+}

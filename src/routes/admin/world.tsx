@@ -9,11 +9,17 @@ export const Route = createFileRoute('/admin/world')({
 
 function Page() {
   const rows = Route.useLoaderData() as any[]
+
   return (
     <CrudTable
-      title="World" group="System Setting" entity="worlds" rows={rows}
+      title="Locations"
+      group="System Setting"
+      entity="worlds"
+      rows={rows}
+      singular="location"
+      empty="No locations found. Add a location to make it available for regional settings."
       columns={[
-        { key: 'name', label: 'Name' },
+        { key: 'name', label: 'Name', kind: 'title' },
         { key: 'state_id', label: 'State ID' },
         { key: 'status', label: 'Status', kind: 'pill' },
       ]}

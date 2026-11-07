@@ -9,10 +9,19 @@ export const Route = createFileRoute('/admin/faq')({
 
 function Page() {
   const rows = Route.useLoaderData() as any[]
+
   return (
     <CrudTable
-      title="FAQ" group="System Setting" entity="faq" rows={rows}
-      columns={[{ key: 'question', label: 'Question' }, { key: 'status', label: 'Status', kind: 'pill' }]}
+      title="FAQ"
+      group="System Setting"
+      entity="faq"
+      rows={rows}
+      singular="FAQ"
+      empty="No FAQs found. Add a question and answer to help your audience."
+      columns={[
+        { key: 'question', label: 'Question', kind: 'title' },
+        { key: 'status', label: 'Status', kind: 'pill' },
+      ]}
       fields={[
         { key: 'question', label: 'Question', required: true },
         { key: 'status', label: 'Status', type: 'toggle' },

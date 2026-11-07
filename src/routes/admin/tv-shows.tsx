@@ -4,5 +4,5 @@ import { ContentAdmin } from '../../components/admin-content'
 
 export const Route = createFileRoute('/admin/tv-shows')({
   loader: async () => await adminListContent({ data: 'tvshow' }),
-  component: () => <ContentAdmin items={Route.useLoaderData()} type="tvshow" title="TV Shows" />,
+  component: () => <ContentAdmin items={Route.useLoaderData()} type="tvshow" title="Shows" />,
 })

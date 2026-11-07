@@ -9,10 +9,21 @@ export const Route = createFileRoute('/admin/plan-limits')({
 
 function Page() {
   const rows = Route.useLoaderData() as any[]
+
   return (
     <CrudTable
-      title="Plan Limits" group="Subscription" entity="plan-limits" rows={rows}
-      columns={[{ key: 'title', label: 'Title' }, { key: 'slug', label: 'Slug' }, { key: 'mappings', label: 'Plans' }, { key: 'status', label: 'Status', kind: 'pill' }]}
+      title="Plan Limits"
+      group="Subscription"
+      entity="plan-limits"
+      rows={rows}
+      singular="plan limit"
+      empty="No plan limits found. Add a limit to define subscription restrictions."
+      columns={[
+        { key: 'title', label: 'Title', kind: 'title' },
+        { key: 'slug', label: 'Slug' },
+        { key: 'mappings', label: 'Plans' },
+        { key: 'status', label: 'Status', kind: 'pill' },
+      ]}
       fields={[
         { key: 'title', label: 'Title', required: true },
         { key: 'slug', label: 'Slug' },
