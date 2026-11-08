@@ -247,7 +247,8 @@ function AdminSettings() {
       const data = await res.json().catch(() => null) as { url?: string; error?: string } | null
       if (!res.ok) throw new Error(data?.error ?? 'The image could not be uploaded.')
       if (!data?.url) throw new Error('The upload response did not include an image URL.')
-      setValues((cur) => ({ ...cur, [key]: data.url }))
+      const uploadedUrl = data.url
+      setValues((cur) => ({ ...cur, [key]: uploadedUrl }))
       notify({ title: 'Image uploaded', description: 'Remember to save to apply it.', variant: 'success' })
     } catch (e: any) {
       const message = e?.message ?? 'The image could not be uploaded.'
