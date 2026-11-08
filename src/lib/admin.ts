@@ -1,9 +1,85 @@
 import { createServerFn } from '@tanstack/react-start'
 import { env } from 'cloudflare:workers'
+import { getRequest } from '@tanstack/react-start/server'
 import { getSession } from './session.server'
 import { all, first, run } from './db'
+import { groupedType, isSeriesEntity, assertGroupedRecord, validateGroupedValues } from './series-validation'
+import { normalizeBunnyFields } from './bunny'
+import { positiveId, validateLocation, validatePersonalitySocials, type LocationInput, type LocationAssignment } from './locations-validation'
 
 const ADMIN_TYPES = ['admin', 'demo_admin']
+
+// Locations have their own records and typed title associations. The legacy
+// cast source IDs are immutable and excluded from every personality editor.
+export const adminListLocations = createServerFn({ method: 'GET' }).handler(async () => {
+  await requireAdmin()
+  return all(`SELECT l.id, l.name, l.file_url, l.address, l.status,
+    (SELECT COUNT(*) FROM content_location_mapping m WHERE m.location_id = l.id) AS titles
+    FROM locations l WHERE l.deleted_at IS NULL ORDER BY l.name`)
+})
+
+export const adminLocationOptions = createServerFn({ method: 'GET' }).handler(async () => {
+  await requireAdmin()
+  const [entertainments, videos, episodes] = await Promise.all([
+    all(`SELECT id, name, type, 'entertainment' AS content_type FROM entertainments WHERE deleted_at IS NULL ORDER BY name`),
+    all(`SELECT id, name, 'video' AS type, 'video' AS content_type FROM videos WHERE deleted_at IS NULL ORDER BY name`),
+    all(`SELECT ep.id, ep.name, 'episode' AS type, 'episode' AS content_type, e.name AS parent_name
+      FROM episodes ep JOIN entertainments e ON e.id = ep.entertainment_id
+      WHERE ep.deleted_at IS NULL AND e.deleted_at IS NULL ORDER BY e.name, ep.name`),
+  ])
+  return [...entertainments, ...videos, ...episodes]
+})
+
+export const adminGetLocation = createServerFn({ method: 'GET' })
+  .validator(positiveId)
+  .handler(async ({ data: id }) => {
+    await requireAdmin()
+    const row = await first<any>(`SELECT id, name, file_url, description, address, status FROM locations WHERE id = ? AND deleted_at IS NULL`, id)
+    if (!row) throw new Error('Location not found.')
+    const assignments = await all<LocationAssignment>(`SELECT content_type, content_id FROM content_location_mapping WHERE location_id = ?`, id)
+    return { ...row, assignments } as LocationInput
+  })
+
+export const adminUpsertLocation = createServerFn({ method: 'POST' })
+  .validator(validateLocation)
+  .handler(async ({ data }) => {
+    await requireAdmin()
+    if (data.id && !await first(`SELECT id FROM locations WHERE id = ? AND deleted_at IS NULL`, data.id)) throw new Error('Location not found.')
+    // Validate every association against a known table; never trust a client
+    // supplied table name or allow an ID collision between video and sermon.
+    for (const [kind, table] of Object.entries({ entertainment: 'entertainments', video: 'videos', episode: 'episodes' })) {
+      const ids = data.assignments.filter(item => item.content_type === kind).map(item => item.content_id)
+      for (let start = 0; start < ids.length; start += 80) {
+        const chunk = ids.slice(start, start + 80)
+        const found = await all(`SELECT id FROM ${table} WHERE deleted_at IS NULL AND id IN (${chunk.map(() => '?').join(',')})`, ...chunk)
+        if (found.length !== chunk.length) throw new Error('A selected title is no longer available. Refresh the list and try again.')
+      }
+    }
+    const db = (env as any).DB
+    const values = [data.name, data.file_url ?? null, data.description ?? null, data.address ?? null, data.status]
+    const statements = [data.id
+      ? db.prepare(`UPDATE locations SET name = ?, file_url = ?, description = ?, address = ?, status = ?, updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL`).bind(...values, data.id)
+      : db.prepare(`INSERT INTO locations (name, file_url, description, address, status) VALUES (?, ?, ?, ?, ?)`).bind(...values)]
+    if (data.id) statements.push(db.prepare(`DELETE FROM content_location_mapping WHERE location_id = ?`).bind(data.id))
+    for (const assignment of data.assignments) {
+      // sqlite_sequence is scoped to locations and stable throughout this
+      // atomic D1 batch, including after mapping inserts change last_insert_rowid.
+      statements.push(data.id
+        ? db.prepare(`INSERT INTO content_location_mapping (location_id, content_type, content_id) VALUES (?, ?, ?)`).bind(data.id, assignment.content_type, assignment.content_id)
+        : db.prepare(`INSERT INTO content_location_mapping (location_id, content_type, content_id) SELECT seq, ?, ? FROM sqlite_sequence WHERE name = 'locations'`).bind(assignment.content_type, assignment.content_id))
+    }
+    const results = await db.batch(statements)
+    return { ok: true, id: data.id ?? results[0]?.meta?.last_row_id }
+  })
+
+export const adminDeleteLocation = createServerFn({ method: 'POST' })
+  .validator(positiveId)
+  .handler(async ({ data: id }) => {
+    await requireAdmin()
+    if (!await first(`SELECT id FROM locations WHERE id = ? AND deleted_at IS NULL`, id)) throw new Error('Location not found.')
+    await run(`UPDATE locations SET deleted_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`, id)
+    return { ok: true }
+  })
 
 export class AdminError extends Error {
   code: 'needsAuth' | 'forbidden'
@@ -22,6 +98,9 @@ async function requireAdmin(): Promise<{ uid: number; email: string }> {
   )
   if (!user || !ADMIN_TYPES.includes(user.user_type)) {
     throw new AdminError('forbidden', 'Admin access required.')
+  }
+  if (user.user_type === 'demo_admin' && !['GET', 'HEAD'].includes(getRequest().method)) {
+    throw new AdminError('forbidden', 'Demo administrators have read-only access.')
   }
   return { uid: user.id, email: user.email }
 }
@@ -49,10 +128,11 @@ export const getAdminStats = createServerFn({ method: 'GET' })
       `${from ? ` AND date(${col}) >= '${from}'` : ''}${to ? ` AND date(${col}) <= '${to}'` : ''}`
     const c = async (sql: string) =>
       (await first<{ n: number }>(sql).catch(() => ({ n: 0 })))?.n ?? 0
-    const [movies, tvshows, videos, channels, users, genres, plans, activeSubs, cast, soonToExpire, reviews, rentContent] =
+    const [movies, tvshows, teaching, videos, channels, users, genres, plans, activeSubs, cast, soonToExpire, rentContent] =
       await Promise.all([
         c(`SELECT COUNT(*) n FROM entertainments WHERE type='movie' AND deleted_at IS NULL${dateClause()}`),
         c(`SELECT COUNT(*) n FROM entertainments WHERE type='tvshow' AND deleted_at IS NULL${dateClause()}`),
+        c(`SELECT COUNT(*) n FROM entertainments WHERE type='teaching' AND deleted_at IS NULL${dateClause()}`),
         c(`SELECT COUNT(*) n FROM videos WHERE deleted_at IS NULL${dateClause()}`),
         c(`SELECT COUNT(*) n FROM live_tv_channel WHERE deleted_at IS NULL${dateClause()}`),
         c(`SELECT COUNT(*) n FROM users WHERE deleted_at IS NULL${dateClause()}`),
@@ -61,7 +141,6 @@ export const getAdminStats = createServerFn({ method: 'GET' })
         c(`SELECT COUNT(*) n FROM subscriptions WHERE status = 'active' AND deleted_at IS NULL${dateClause()}`),
         c(`SELECT COUNT(*) n FROM cast_crew WHERE deleted_at IS NULL${dateClause()}`),
         c(`SELECT COUNT(*) n FROM subscriptions WHERE status = 'active' AND deleted_at IS NULL AND end_date <= date('now', '+30 days')`),
-        c(`SELECT COUNT(*) n FROM reviews WHERE deleted_at IS NULL${dateClause()}`),
         c(`SELECT COUNT(*) n FROM pay_per_views WHERE 1=1${dateClause()}`),
       ])
     const revenue = await first<{ total: number }>(
@@ -71,22 +150,22 @@ export const getAdminStats = createServerFn({ method: 'GET' })
       `SELECT COALESCE(SUM(price), 0) AS total FROM pay_per_views WHERE 1=1${dateClause()}`,
     ).catch(() => ({ total: 0 }))
     const monthly = async (table: string, where = '', soft = true) =>
-      all(
+      all<{ m: string; n: number }>(
         `SELECT strftime('%Y-%m', created_at) AS m, COUNT(*) AS n FROM ${table}
          WHERE created_at IS NOT NULL ${soft ? 'AND deleted_at IS NULL' : ''} ${where}${dateClause()} GROUP BY m ORDER BY m DESC LIMIT 6`,
       ).catch(() => [])
-    const [usersM, moviesM, tvshowsM, videosM, channelsM, genresM, plansM, subsM, castM, reviewsM, rentM] =
+    const [usersM, moviesM, tvshowsM, teachingM, videosM, channelsM, genresM, plansM, subsM, castM, rentM] =
       await Promise.all([
         monthly('users'),
         monthly('entertainments', `AND type='movie'`),
         monthly('entertainments', `AND type='tvshow'`),
+        monthly('entertainments', `AND type='teaching'`),
         monthly('videos'),
         monthly('live_tv_channel'),
         monthly('genres'),
         monthly('plan'),
         monthly('subscriptions'),
         monthly('cast_crew'),
-        monthly('reviews'),
         monthly('pay_per_views', '', false),
       ])
     const genreTop = await all(
@@ -107,13 +186,13 @@ export const getAdminStats = createServerFn({ method: 'GET' })
        ORDER BY t.id DESC LIMIT 6`,
     ).catch(() => [])
     return {
-      counts: { movies, tvshows, videos, channels, users, genres, plans, activeSubs, cast, soonToExpire, reviews, rentContent },
+      counts: { movies, tvshows, teaching, videos, channels, users, genres, plans, activeSubs, cast, soonToExpire, rentContent },
       revenue: revenue?.total ?? 0,
       rentRevenue: rentRevenue?.total ?? 0,
       monthly: {
-        users: usersM, movies: moviesM, tvshows: tvshowsM, videos: videosM,
+        users: usersM, movies: moviesM, tvshows: tvshowsM, teaching: teachingM, videos: videosM,
         channels: channelsM, genres: genresM, plans: plansM, activeSubs: subsM, cast: castM,
-        reviews: reviewsM, rentContent: rentM, soonToExpire: subsM,
+        rentContent: rentM, soonToExpire: subsM,
       },
       genreTop,
       recentUsers,
@@ -141,7 +220,7 @@ export const adminListContent = createServerFn({ method: 'GET' })
 export interface ContentInput {
   id?: number
   name: string
-  type: 'movie' | 'tvshow'
+  type: 'movie' | 'tvshow' | 'teaching'
   description?: string
   short_description?: string
   release_date?: string
@@ -196,7 +275,7 @@ export const adminGetContent = createServerFn({ method: 'GET' })
     const row = await first<any>(`SELECT * FROM entertainments WHERE id = ? AND deleted_at IS NULL`, id)
     if (!row) throw new Error('not found')
     const genres = await all<any>(`SELECT genre_id FROM entertainment_gener_mapping WHERE entertainment_id = ?`, id).catch(() => [])
-    const cast = await all<any>(`SELECT talent_id, type FROM entertainment_talent_mapping WHERE entertainment_id = ?`, id).catch(() => [])
+    const cast = await all<any>(`SELECT m.talent_id, COALESCE(m.type, c.type) AS type FROM entertainment_talent_mapping m JOIN cast_crew c ON c.id = m.talent_id WHERE m.entertainment_id = ? AND m.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM locations l WHERE l.source_cast_crew_id = c.id)`, id).catch(() => [])
     return {
       ...row,
       genre_ids: genres.map((g) => g.genre_id),
@@ -209,7 +288,7 @@ export const adminContentOptions = createServerFn({ method: 'GET' }).handler(asy
   await requireAdmin()
   const [genres, cast, plans] = await Promise.all([
     all(`SELECT id, name FROM genres WHERE deleted_at IS NULL ORDER BY name`),
-    all(`SELECT id, name, type FROM cast_crew WHERE deleted_at IS NULL ORDER BY name LIMIT 500`),
+    all(`SELECT c.id, c.name, c.type FROM cast_crew c WHERE c.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM locations l WHERE l.source_cast_crew_id = c.id) ORDER BY c.name LIMIT 500`),
     all(`SELECT id, name FROM plan WHERE deleted_at IS NULL ORDER BY CAST(level AS INTEGER)`).catch(() => []),
   ])
   return { genres, cast, plans }
@@ -219,8 +298,22 @@ export const adminUpsertContent = createServerFn({ method: 'POST' })
   .validator((d: ContentInput) => d)
   .handler(async ({ data }) => {
     const admin = await requireAdmin()
+    data = normalizeBunnyFields(data)
     if (!data.name?.trim()) throw new Error('Name is required.')
-    if (!['movie', 'tvshow'].includes(data.type)) throw new Error('Type must be movie or tvshow.')
+    if (!['movie', 'tvshow', 'teaching'].includes(data.type)) throw new Error('Type must be movie, tvshow or teaching.')
+    for (const supplied of [data.cast_ids, data.director_ids]) {
+      if (supplied === undefined) continue
+      if (!Array.isArray(supplied) || supplied.length > 500) throw new Error('Choose up to 500 personalities.')
+      for (const tid of supplied) positiveId(tid)
+      const ids = [...new Set(supplied)]
+      for (let start = 0; start < ids.length; start += 80) {
+        const chunk = ids.slice(start, start + 80)
+        const found = await all(`SELECT c.id FROM cast_crew c WHERE c.deleted_at IS NULL
+          AND NOT EXISTS (SELECT 1 FROM locations l WHERE l.source_cast_crew_id = c.id)
+          AND c.id IN (${chunk.map(() => '?').join(',')})`, ...chunk)
+        if (found.length !== chunk.length) throw new Error('Choose existing personalities. Assign venues from Locations.')
+      }
+    }
     const vals: Record<string, any> = {}
     for (const f of CONTENT_WRITABLE) {
       if (f in data) {
@@ -256,7 +349,7 @@ export const adminUpsertContent = createServerFn({ method: 'POST' })
           await run(`INSERT INTO entertainment_gener_mapping (entertainment_id, genre_id, created_at, updated_at) VALUES (?,?,datetime('now'),datetime('now'))`, id, gid).catch(() => null)
       }
       if (data.cast_ids || data.director_ids) {
-        await run(`DELETE FROM entertainment_talent_mapping WHERE entertainment_id = ?`, id).catch(() => null)
+        await run(`DELETE FROM entertainment_talent_mapping WHERE entertainment_id = ? AND talent_id NOT IN (SELECT source_cast_crew_id FROM locations WHERE source_cast_crew_id IS NOT NULL)`, id).catch(() => null)
         for (const tid of data.cast_ids ?? [])
           await run(`INSERT INTO entertainment_talent_mapping (entertainment_id, talent_id, type, created_at, updated_at) VALUES (?,?,'actor',datetime('now'),datetime('now'))`, id, tid).catch(() => null)
         for (const tid of data.director_ids ?? [])
@@ -293,6 +386,7 @@ export const adminUpsertVideo = createServerFn({ method: 'POST' })
   }) => d)
   .handler(async ({ data }) => {
     const admin = await requireAdmin()
+    data = normalizeBunnyFields(data)
     if (!data.name?.trim()) throw new Error('Name is required.')
     const VCOLS = ['name', 'description', 'duration', 'release_date', 'status', 'poster_url', 'thumbnail_url',
       'trailer_url', 'video_url_input', 'video_upload_type', 'bunny_video_url', 'access', 'price',
@@ -541,15 +635,60 @@ export const adminSaveSetting = createServerFn({ method: 'POST' })
     return { ok: true }
   })
 
+export const adminUpsertSetting = createServerFn({ method: 'POST' })
+  .validator((d: { type: string; name: string; val: string }) => d)
+  .handler(async ({ data }) => {
+    const admin = await requireAdmin()
+    const existing = await first<any>(`SELECT id FROM settings WHERE type = ? AND name = ? AND deleted_at IS NULL`, data.type, data.name)
+    if (existing) {
+      await run(`UPDATE settings SET val = ?, updated_by = ?, updated_at = datetime('now') WHERE id = ?`, String(data.val), admin.uid, existing.id)
+    } else {
+      await run(
+        `INSERT INTO settings (name, val, type, created_by, updated_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+        data.name, String(data.val), data.type, admin.uid, admin.uid,
+      )
+    }
+    return { ok: true }
+  })
+
+export const adminListCurrencies = createServerFn({ method: 'GET' }).handler(async () => {
+  await requireAdmin()
+  return all(`SELECT id, currency_name, currency_code, currency_symbol, is_primary FROM currencies WHERE deleted_at IS NULL ORDER BY id`)
+})
+
+export const adminTestNovu = createServerFn({ method: 'POST' }).handler(async () => {
+  await requireAdmin()
+  const rows = await all<any>(
+    `SELECT name, val FROM settings WHERE name IN ('novu_api_key', 'novu_application_id', 'novu_backend_url') AND deleted_at IS NULL`,
+  )
+  const cfg = Object.fromEntries(rows.map((r) => [r.name, r.val ?? '']))
+  const key = cfg.novu_api_key?.trim()
+  if (!key) throw new Error('Set the Novu Secret Key first, save, then test.')
+  const base = (cfg.novu_backend_url?.trim() || 'https://api.novu.co').replace(/\/$/, '')
+  const res = await fetch(`${base}/v2/workflows?limit=1`, {
+    headers: { Authorization: `ApiKey ${key}`, Accept: 'application/json' },
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`Novu responded ${res.status}: ${body.slice(0, 140) || res.statusText}`)
+  }
+  const json: any = await res.json().catch(() => null)
+  const count = typeof json?.totalCount === 'number' ? json.totalCount : undefined
+  return { ok: true, workflows: count }
+})
+
 // ---------- generic read-only admin tables (Batch F) ----------
 
 const ADMIN_TABLES: Record<string, string> = {
   'media-library': `SELECT id, name, file_name, mime_type, size, created_at FROM media ORDER BY id DESC LIMIT 200`,
   seasons: `SELECT s.id, s.name, s.poster_url, s.status, e.name AS show FROM seasons s LEFT JOIN entertainments e ON e.id = s.entertainment_id WHERE s.deleted_at IS NULL ORDER BY s.id DESC LIMIT 300`,
-  episodes: `SELECT ep.id, ep.name, ep.poster_url, ep.status, ep.duration, e.name AS show, s.name AS season FROM episodes ep LEFT JOIN entertainments e ON e.id = ep.entertainment_id LEFT JOIN seasons s ON s.id = ep.season_id WHERE ep.deleted_at IS NULL ORDER BY ep.id DESC LIMIT 300`,
+  series: `SELECT s.id, s.name, s.season_number, s.poster_url, s.status, e.name AS show FROM seasons s JOIN entertainments e ON e.id = s.entertainment_id WHERE e.type = 'tvshow' AND e.deleted_at IS NULL AND s.deleted_at IS NULL ORDER BY e.name, COALESCE(s.season_number, CAST(s.season_index AS INTEGER)), s.id`,
+  'teaching-volumes': `SELECT s.id, s.name, s.season_number, s.poster_url, s.status, e.name AS show FROM seasons s JOIN entertainments e ON e.id = s.entertainment_id WHERE e.type = 'teaching' AND e.deleted_at IS NULL AND s.deleted_at IS NULL ORDER BY e.name, COALESCE(s.season_number, CAST(s.season_index AS INTEGER)), s.id`,
+  episodes: `SELECT ep.id, ep.name, ep.poster_url, ep.status, ep.duration, e.name AS show, s.name AS season FROM episodes ep LEFT JOIN entertainments e ON e.id = ep.entertainment_id AND e.type = 'tvshow' LEFT JOIN seasons s ON s.id = ep.season_id WHERE ep.deleted_at IS NULL AND e.deleted_at IS NULL AND e.id IS NOT NULL ORDER BY ep.id DESC LIMIT 300`,
+  'teaching-episodes': `SELECT ep.id, ep.name, ep.poster_url, ep.status, ep.duration, e.name AS show, s.name AS season FROM episodes ep LEFT JOIN entertainments e ON e.id = ep.entertainment_id AND e.type = 'teaching' LEFT JOIN seasons s ON s.id = ep.season_id WHERE ep.deleted_at IS NULL AND e.deleted_at IS NULL AND e.id IS NOT NULL ORDER BY ep.id DESC LIMIT 300`,
   'tv-category': `SELECT id, name, file_url, status FROM live_tv_category WHERE deleted_at IS NULL ORDER BY name`,
-  actors: `SELECT id, name, file_url, designation, status FROM cast_crew WHERE type = 'actor' AND deleted_at IS NULL ORDER BY id LIMIT 300`,
-  directors: `SELECT id, name, file_url, designation, status FROM cast_crew WHERE type = 'director' AND deleted_at IS NULL ORDER BY id LIMIT 300`,
+  actors: `SELECT c.id, c.name, c.file_url, c.designation, c.status FROM cast_crew c WHERE c.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM locations l WHERE l.source_cast_crew_id = c.id) ORDER BY c.id LIMIT 500`,
+  directors: `SELECT c.id, c.name, c.file_url, c.designation, c.status FROM cast_crew c WHERE c.type = 'director' AND c.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM locations l WHERE l.source_cast_crew_id = c.id) ORDER BY c.id LIMIT 500`,
   'vast-ads': `SELECT * FROM vast_ads_setting WHERE deleted_at IS NULL ORDER BY id DESC LIMIT 100`,
   'custom-ads': `SELECT * FROM custom_ads_setting WHERE deleted_at IS NULL ORDER BY id DESC LIMIT 100`,
   'plan-limits': `SELECT l.id, l.title, l.slug, l.status, (SELECT COUNT(*) FROM planlimitation_mapping m WHERE m.planlimitation_id = l.id) AS mappings FROM planlimitation l WHERE l.deleted_at IS NULL ORDER BY l.id`,
@@ -591,16 +730,19 @@ export const adminTable = createServerFn({ method: 'GET' })
     if (!admin) throw new Error('unauthorized')
     const sql = ADMIN_TABLES[key]
     if (!sql) throw new Error(`unknown admin table: ${key}`)
-    return all(sql).catch(() => [])
+    return groupedType(key) ? all(sql) : all(sql).catch(() => [])
   })
 
 // ---------- generic CRUD (feature-replication of Laravel add/edit/delete) ----------
 
+const SERIES_FIELDS = ['name', 'entertainment_id', 'season_number', 'season_index', 'poster_url', 'access', 'price', 'short_desc', 'description', 'status']
 const CRUD_ENTITIES: Record<string, { table: string; fields: string[]; fixed?: Record<string, any> }> = {
-  seasons: { table: 'seasons', fields: ['name', 'entertainment_id', 'season_number', 'poster_url', 'access', 'price', 'short_desc', 'description', 'status'] },
+  seasons: { table: 'seasons', fields: SERIES_FIELDS },
+  series: { table: 'seasons', fields: SERIES_FIELDS },
+  'teaching-volumes': { table: 'seasons', fields: SERIES_FIELDS },
   episodes: { table: 'episodes', fields: ['name', 'entertainment_id', 'season_id', 'episode_number', 'duration', 'release_date', 'poster_url', 'video_url_input', 'video_upload_type', 'bunny_video_url', 'access', 'price', 'short_desc', 'description', 'enable_subtitle', 'subtitle_file', 'subtitle_language', 'meta_title', 'meta_keywords', 'meta_description', 'status'] },
-  actors: { table: 'cast_crew', fields: ['name', 'designation', 'file_url', 'dob', 'place_of_birth', 'bio', 'status'], fixed: { type: 'actor' } },
-  directors: { table: 'cast_crew', fields: ['name', 'designation', 'file_url', 'dob', 'place_of_birth', 'bio', 'status'], fixed: { type: 'director' } },
+  actors: { table: 'cast_crew', fields: ['name', 'designation', 'file_url', 'dob', 'place_of_birth', 'bio', 'status', 'social_facebook', 'social_instagram', 'social_x', 'social_website'], fixed: { type: 'actor' } },
+  directors: { table: 'cast_crew', fields: ['name', 'designation', 'file_url', 'dob', 'place_of_birth', 'bio', 'status', 'social_facebook', 'social_instagram', 'social_x', 'social_website'], fixed: { type: 'director' } },
   coupons: { table: 'coupons', fields: ['code', 'description', 'discount_type', 'discount', 'start_date', 'expire_date', 'status'] },
   banners: { table: 'banners', fields: ['title', 'type', 'type_id', 'banner_for', 'file_url', 'poster_url', 'status'] },
   faq: { table: 'faqs', fields: ['question', 'answer', 'status'] },
@@ -618,6 +760,7 @@ const CRUD_ENTITIES: Record<string, { table: string; fields: string[]; fixed?: R
   'notification-templates': { table: 'notification_templates', fields: ['name', 'label', 'type', 'description', 'status'] },
   reviews: { table: 'reviews', fields: [] },
 }
+CRUD_ENTITIES['teaching-episodes'] = CRUD_ENTITIES.episodes
 
 function entityFor(key: string) {
   const e = CRUD_ENTITIES[key]
@@ -628,20 +771,43 @@ function entityFor(key: string) {
 export const adminOptions = createServerFn({ method: 'GET' }).handler(async () => {
   await requireAdmin()
   const shows = await all(`SELECT id, name FROM entertainments WHERE type = 'tvshow' AND deleted_at IS NULL ORDER BY name LIMIT 500`)
-  const seasons = await all(`SELECT id, name, entertainment_id FROM seasons WHERE deleted_at IS NULL ORDER BY id DESC LIMIT 500`)
+  const teaching = await all(`SELECT id, name FROM entertainments WHERE type = 'teaching' AND deleted_at IS NULL ORDER BY name LIMIT 500`)
+  const seasons = await all(`SELECT s.id, s.name, s.entertainment_id, e.type, s.season_number FROM seasons s JOIN entertainments e ON e.id = s.entertainment_id WHERE s.deleted_at IS NULL AND e.deleted_at IS NULL AND e.type IN ('tvshow', 'teaching') ORDER BY COALESCE(s.season_number, CAST(s.season_index AS INTEGER)), s.id`)
   const contents = await all(`SELECT id, name, type FROM entertainments WHERE deleted_at IS NULL ORDER BY name LIMIT 500`)
-  return { shows, seasons, contents }
+  return { shows, teaching, seasons, contents }
 })
+
+async function assertPersonalityRecord(entity: string, id?: number) {
+  if (!['actors', 'directors'].includes(entity) || id === undefined) return
+  positiveId(id)
+  const person = await first<any>(`SELECT c.id, c.type FROM cast_crew c WHERE c.id = ? AND c.deleted_at IS NULL
+    AND NOT EXISTS (SELECT 1 FROM locations l WHERE l.source_cast_crew_id = c.id)`, id)
+  if (!person || (entity === 'directors' && person.type !== 'director')) throw new Error('Personality not found.')
+}
+
+async function savePersonalitySocials(id: number, links: ReturnType<typeof validatePersonalitySocials>) {
+  if (!links.length) return
+  const db = (env as any).DB
+  await db.batch(links.map(link => link.url
+    ? db.prepare(`INSERT INTO personality_social_links (personality_id, provider, url) VALUES (?, ?, ?) ON CONFLICT(personality_id, provider) DO UPDATE SET url = excluded.url`).bind(id, link.provider, link.url)
+    : db.prepare(`DELETE FROM personality_social_links WHERE personality_id = ? AND provider = ?`).bind(id, link.provider)))
+}
 
 export const adminGetRow = createServerFn({ method: 'GET' })
   .validator((d: { entity: string; id: number }) => d)
   .handler(async ({ data }) => {
     await requireAdmin()
     const e = entityFor(data.entity)
+    await assertPersonalityRecord(data.entity, data.id)
     const row = await first<any>(`SELECT * FROM ${e.table} WHERE id = ?`, data.id)
     if (!row) throw new Error('not found')
+    await assertGroupedRecord(data.entity, row, first)
     const out: Record<string, any> = { id: row.id }
     for (const f of e.fields) out[f] = row[f]
+    if (e.table === 'cast_crew') {
+      const links = await all<any>(`SELECT provider, url FROM personality_social_links WHERE personality_id = ?`, data.id)
+      for (const link of links) out[`social_${link.provider}`] = link.url
+    }
     return out
   })
 
@@ -650,8 +816,15 @@ export const adminUpsertRow = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     await requireAdmin()
     const e = entityFor(data.entity)
+    await assertPersonalityRecord(data.entity, data.id)
+    const socials = e.table === 'cast_crew' ? validatePersonalitySocials(data.values) : []
+    if (e.table === 'cast_crew' && 'name' in data.values && (typeof data.values.name !== 'string' || !data.values.name.trim())) throw new Error('Name is required.')
+    if (e.table === 'episodes') data.values = normalizeBunnyFields(data.values)
+    const current = data.id && groupedType(data.entity) ? await first<any>(`SELECT * FROM ${e.table} WHERE id = ?`, data.id) : null
+    if (data.id && groupedType(data.entity)) await assertGroupedRecord(data.entity, current, first)
     const vals: Record<string, any> = {}
     for (const f of e.fields) {
+      if (f.startsWith('social_')) continue
       if (f in data.values) {
         let v = data.values[f]
         if (typeof v === 'string') v = v.trim()
@@ -660,9 +833,11 @@ export const adminUpsertRow = createServerFn({ method: 'POST' })
       }
     }
     if (Object.keys(vals).length === 0 && !data.id) throw new Error('nothing to save')
+    await validateGroupedValues(data.entity, vals, current, first)
     if (data.id) {
       const sets = Object.keys(vals).map((k) => `${k} = ?`).join(', ')
       if (sets) await run(`UPDATE ${e.table} SET ${sets}, updated_at = datetime('now') WHERE id = ?`, ...Object.values(vals), data.id)
+      await savePersonalitySocials(data.id, socials)
       return { ok: true, id: data.id }
     }
     const merged = { ...(e.fixed ?? {}), ...vals }
@@ -671,7 +846,9 @@ export const adminUpsertRow = createServerFn({ method: 'POST' })
       `INSERT INTO ${e.table} (${cols.join(', ')}, created_at, updated_at) VALUES (${cols.map(() => '?').join(', ')}, datetime('now'), datetime('now'))`,
       ...Object.values(merged),
     )
-    return { ok: true, id: (res as any)?.meta?.last_row_id ?? null }
+    const id = (res as any)?.meta?.last_row_id ?? null
+    if (id) await savePersonalitySocials(id, socials)
+    return { ok: true, id }
   })
 
 export const adminDeleteRow = createServerFn({ method: 'POST' })
@@ -679,6 +856,14 @@ export const adminDeleteRow = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     await requireAdmin()
     const e = entityFor(data.entity)
+    await assertPersonalityRecord(data.entity, data.id)
+    if (groupedType(data.entity)) {
+      const row = await first<any>(`SELECT * FROM ${e.table} WHERE id = ?`, data.id)
+      await assertGroupedRecord(data.entity, row, first)
+      if (isSeriesEntity(data.entity) && await first('SELECT id FROM episodes WHERE season_id = ? AND deleted_at IS NULL LIMIT 1', data.id)) {
+        throw new Error('Reassign or remove the episodes before deleting this series or volume.')
+      }
+    }
     await run(`UPDATE ${e.table} SET deleted_at = datetime('now') WHERE id = ?`, data.id)
     return { ok: true }
   })
@@ -739,7 +924,7 @@ export const adminListR2Media = createServerFn({ method: 'GET' }).handler(async 
   const bucket = (env as any).MEDIA
   if (!bucket?.list) return { ok: false as const, error: 'R2 bucket not bound.', objects: [] }
   const listed = await bucket.list({ limit: 200 })
-  const objects = (listed.objects ?? []).map((o: any) => ({
+  const objects = (listed.objects ?? []).filter((o: any) => !String(o.key).startsWith('private/')).map((o: any) => ({
     key: o.key,
     size: o.size,
     uploaded: o.uploaded ? new Date(o.uploaded).toISOString() : null,
@@ -753,6 +938,7 @@ export const adminDeleteR2Object = createServerFn({ method: 'POST' })
   .validator((key: string) => key)
   .handler(async ({ data: key }) => {
     await requireAdmin()
+    if (key.startsWith('private/')) throw new Error('Account images are managed through the account, not the public media library.')
     const bucket = (env as any).MEDIA
     if (!bucket?.delete) throw new Error('R2 bucket not bound.')
     await bucket.delete(key)

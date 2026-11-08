@@ -2,19 +2,41 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "gndottadmin",
   "compatibility_date": "2026-01-15",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "r2_buckets": [
     {
       "binding": "MEDIA",
-      "bucket_name": "streamit-media"
+      "bucket_name": "halobox-migrated-media-20261105"
     }
   ],
   "main": "@tanstack/react-start/server-entry",
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "streamit",
-      "database_id": "e5502cd6-d9f0-49d2-b4ce-e9dffb0217d7"
+      "database_name": "halobox-migrated-20261105",
+      "database_id": "3bc8aa15-6d59-42be-93df-23397c737c56"
     }
-  ]
+  ],
+  "routes": [
+    {
+      "pattern": "fort.halobox.tv",
+      "custom_domain": true
+    }
+  ],
+  "send_email": [
+    {
+      "name": "EMAIL",
+      "allowed_sender_addresses": [
+        "noreply@halobox.tv"
+      ]
+    }
+  ],
+  "vars": {
+    "BETTER_AUTH_URL": "https://fort.halobox.tv",
+    "AUTH_EMAIL_FROM": "noreply@halobox.tv",
+    "AUTH_EMAIL_ENABLED": "1"
+  },
+  "workers_dev": true
 }

@@ -1,6 +1,9 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 import { adminListPlans, adminUpsertPlan, adminDeletePlan } from '../../lib/admin'
+import { useConfirm } from '../../lib/confirm'
+import { useToast } from '../../lib/toast'
+import { AdminDataTable } from '../../components/AdminDataTable'
 
 export const Route = createFileRoute('/admin/plans')({
   loader: async () => await adminListPlans(),
@@ -12,6 +15,8 @@ type PForm = { id?: number; name: string; price: string; duration: string; durat
 function AdminPlans() {
   const items = Route.useLoaderData()
   const router = useRouter()
+  const confirmAction = useConfirm()
+  const notify = useToast()
   const [editing, setEditing] = useState<PForm | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -24,52 +29,64 @@ function AdminPlans() {
       await adminUpsertPlan({
         data: { ...editing, price: Number(editing.price), duration_value: Number(editing.duration_value), level: Number(editing.level) },
       })
+      notify({ title: editing.id ? 'Plan updated' : 'Plan created', description: editing.name, variant: 'success' })
       setEditing(null)
       router.invalidate()
     } catch (e: any) {
       setError(e?.message ?? 'Save failed.')
+      notify({ title: 'Save failed', description: e?.message ?? 'Could not save the plan.', variant: 'destructive' })
     } finally {
       setBusy(false)
     }
   }
   async function remove(id: number, name: string) {
-    if (!confirm(`Delete plan "${name}"?`)) return
-    await adminDeletePlan({ data: id })
-    router.invalidate()
+    const ok = await confirmAction({
+      title: `Delete plan "${name}"?`,
+      description: 'Subscribers on this plan are not affected retroactively.',
+      approveLabel: 'Delete',
+    })
+    if (!ok) return
+    try {
+      await adminDeletePlan({ data: id })
+      notify({ title: 'Plan deleted', description: name, variant: 'success' })
+      router.invalidate()
+    } catch (e: any) {
+      notify({ title: 'Delete failed', description: e?.message ?? 'Could not delete the plan.', variant: 'destructive' })
+    }
   }
 
   return (
     <div>
       <div className="breadcrumb">Dashboard <span className="sep">/</span> <span className="here">Plans</span></div>
+      <p>Monthly plans include the owner and 1 invited email login with 5 pooled devices. Annual plans include the owner and 3 invited email logins with 10 pooled devices. Profiles stay private to each account; they do not count as shared members.</p>
       <div className="toolbar">
         <span className="spacer" />
         <button className="btn btn-primary" onClick={() => setEditing({ name: '', price: '', duration: 'month', duration_value: 1, level: 1, status: 1, description: '' })}>+ New Plan</button>
       </div>
-      <table className="admin-table">
-        <thead><tr><th>Plan</th><th>Price</th><th>Duration</th><th>Level</th><th>Subscribers</th><th>Status</th><th style={{ width: 150 }}></th></tr></thead>
-        <tbody>
-          {items.map((p: any) => (
-            <tr key={p.id}>
-              <td><span className="cell-title">{p.name}</span><div className="cell-sub">{p.identifier}</div></td>
-              <td>${Number(p.price).toFixed(2)}</td>
-              <td>{p.duration_value} {p.duration}{Number(p.duration_value) > 1 ? 's' : ''}</td>
-              <td>{p.level}</td>
-              <td>{p.subscribers}</td>
-              <td><span className={`pill ${p.status == 1 ? 'on' : 'off'}`}>{p.status == 1 ? 'Active' : 'Off'}</span></td>
-              <td>
-                <div className="row-actions">
-                  <button className="btn btn-dark btn-xs" onClick={() => setEditing({
-                    id: p.id, name: p.name, price: String(p.price), duration: p.duration ?? 'month',
-                    duration_value: Number(p.duration_value ?? 1), level: Number(p.level ?? 1),
-                    status: p.status ?? 1, description: '',
-                  })}>Edit</button>
-                  <button className="btn-danger" onClick={() => remove(p.id, p.name)}>Delete</button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <AdminDataTable
+        rows={items.map((p: any) => ({
+          ...p,
+          duration_label: `${p.duration_value} ${p.duration}${Number(p.duration_value) > 1 ? 's' : ''}`,
+          sharing: p.duration === 'year' ? '4 email logins · 10 devices' : p.duration === 'month' ? '2 email logins · 5 devices' : '1 email login · 5 devices',
+        }))}
+        columns={[
+          { key: 'name', label: 'Plan', kind: 'title' },
+          { key: 'price', label: 'Price', kind: 'money' },
+          { key: 'duration_label', label: 'Duration' },
+          { key: 'sharing', label: 'Shared access (owner included)' },
+          { key: 'level', label: 'Level' },
+          { key: 'subscribers', label: 'Subscribers' },
+          { key: 'status', label: 'Status', kind: 'pill' },
+        ]}
+        searchable={['name', 'identifier']}
+        busy={busy}
+        onEdit={(p) => setEditing({
+          id: p.id, name: p.name, price: String(p.price), duration: p.duration ?? 'month',
+          duration_value: Number(p.duration_value ?? 1), level: Number(p.level ?? 1),
+          status: p.status ?? 1, description: p.description ?? '',
+        })}
+        onDelete={(p) => remove(p.id, p.name)}
+      />
       {editing && (
         <div className="modal-back" onClick={() => setEditing(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>

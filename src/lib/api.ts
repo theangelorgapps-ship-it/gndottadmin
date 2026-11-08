@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { getSession, setSessionCookie, clearSessionCookie } from './session.server'
+import { getSession, clearSessionCookie } from './session.server'
 import { all, first, run } from './db'
 import bcrypt from 'bcryptjs'
 
@@ -275,7 +275,7 @@ export const getGenreContent = createServerFn({ method: 'GET' })
   .handler(async ({ data: id }) => {
     const genre = await first(`SELECT id, name, description FROM genres WHERE id = ?`, id)
     const items = await all<Content>(
-      `SELECT ${CONTENT_COLS} FROM entertainments e JOIN entertainment_gener_mapping m ON m.entertainment_id = e.id WHERE m.genre_id = ? AND e.status = 1 AND e.deleted_at IS NULL`,
+      `SELECT ${CONTENT_COLS} FROM entertainments WHERE id IN (SELECT entertainment_id FROM entertainment_gener_mapping WHERE genre_id = ?) AND status = 1 AND deleted_at IS NULL`,
       id,
     ).catch(() => [])
     return { genre, items }
@@ -285,26 +285,10 @@ export const getGenreContent = createServerFn({ method: 'GET' })
 
 export const login = createServerFn({ method: 'POST' })
   .validator((d: { email: string; password: string }) => d)
-  .handler(async ({ data }) => {
-    const user = await first<any>(
-      `SELECT id, email, first_name, last_name, password, user_type, status, is_banned FROM users WHERE email = ? AND deleted_at IS NULL`,
-      data.email.trim().toLowerCase(),
-    )
-    if (!user) return { ok: false, error: 'No account found for that email.' }
-    if (user.is_banned === 1 || user.status === 0) return { ok: false, error: 'This account is disabled.' }
-    const hash = String(user.password || '').replace(/^\$2y\$/, '$2b$')
-    const valid = bcrypt.compareSync(data.password, hash)
-    if (!valid) return { ok: false, error: 'Incorrect password.' }
-    const profiles = await all(
-      `SELECT id, name, avatar, is_child_profile FROM user_multi_profiles WHERE user_id = ? AND deleted_at IS NULL`,
-      user.id,
-    )
-    await setSessionCookie({ uid: user.id, email: user.email, name: `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() })
-    return { ok: true, user: { id: user.id, email: user.email, name: user.first_name }, profiles }
-  })
+  .handler(async ({ data }) => (await import('./auth.server')).passwordLogin(data))
 
 export const logout = createServerFn({ method: 'POST' }).handler(async () => {
-  clearSessionCookie()
+  await clearSessionCookie()
   return { ok: true }
 })
 
@@ -312,7 +296,7 @@ export const getSessionUser = createServerFn({ method: 'GET' }).handler(async ()
   const session = await getSession()
   if (!session) return null
   const user = await first<any>(
-    `SELECT id, email, first_name, last_name, mobile, is_subscribe, user_type FROM users WHERE id = ?`,
+    `SELECT id, email, first_name, last_name, mobile, is_subscribe, user_type FROM users WHERE id = ? AND deleted_at IS NULL AND status = 1 AND is_banned = 0`,
     session.uid,
   )
   const profiles = await all(
@@ -384,27 +368,7 @@ export const getFooterData = createServerFn({ method: 'GET' }).handler(async () 
 
 export const register = createServerFn({ method: 'POST' })
   .validator((d: { firstName: string; lastName: string; email: string; mobile?: string; password: string }) => d)
-  .handler(async ({ data }) => {
-    const email = data.email.trim().toLowerCase()
-    if (!data.firstName.trim()) return { ok: false, error: 'First name is required.' }
-    if (!email || !email.includes('@')) return { ok: false, error: 'A valid email is required.' }
-    if (!data.password || data.password.length < 8) return { ok: false, error: 'Password must be at least 8 characters.' }
-    const existing = await first<any>(`SELECT id FROM users WHERE email = ?`, email)
-    if (existing) return { ok: false, error: 'An account with this email already exists.' }
-    const hash = bcrypt.hashSync(data.password, 10)
-    const res = await run(
-      `INSERT INTO users (first_name, last_name, email, mobile, password, user_type, status, is_banned, is_subscribe, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,1,0,0,datetime('now'),datetime('now'))`,
-      data.firstName.trim(), data.lastName.trim(), email, data.mobile ?? null, hash, 'user',
-    )
-    const uid = (res as any)?.meta?.last_row_id
-    await run(
-      `INSERT INTO user_multi_profiles (user_id, name, is_child_profile, created_at, updated_at) VALUES (?,?,0,datetime('now'),datetime('now'))`,
-      uid, `${data.firstName.trim()} ${data.lastName.trim()}`.trim(),
-    ).catch(() => null)
-    await setSessionCookie({ uid, email, name: data.firstName.trim() })
-    return { ok: true }
-  })
+  .handler(async () => ({ ok: false, error: 'Create viewer accounts on the Halobox website. Administrative access requires an existing administrator.' }))
 
 // ---------- subscription plans (public) ----------
 
@@ -595,14 +559,8 @@ export const getNotificationsFeed = createServerFn({ method: 'GET' }).handler(as
 
 export const changePassword = createServerFn({ method: 'POST' })
   .validator((d: { current: string; next: string }) => d)
-  .handler(async ({ data }) => {
-    const session = await getSession()
-    if (!session) return { ok: false, error: 'Sign in required.' }
-    const user = await first<any>(`SELECT id, password FROM users WHERE id = ?`, session.uid)
-    if (!user) return { ok: false, error: 'Account not found.' }
-    const hash = String(user.password || '').replace(/^\$2y\$/, '$2b$')
-    if (!bcrypt.compareSync(data.current, hash)) return { ok: false, error: 'Current password is incorrect.' }
-    if (!data.next || data.next.length < 8) return { ok: false, error: 'New password must be at least 8 characters.' }
-    await run(`UPDATE users SET password = ?, updated_at = datetime('now') WHERE id = ?`, bcrypt.hashSync(data.next, 10), session.uid)
-    return { ok: true }
-  })
+  .handler(async ({ data }) => (await import('./auth.server')).changeAccountPassword(data))
+
+export const requestOtp = createServerFn({ method: 'POST' }).validator((d: {contact:string})=>d).handler(async ({data})=>(await import('./auth.server')).requestEmailOtp(data.contact))
+export const verifyOtp = createServerFn({ method: 'POST' }).validator((d: {contact:string;code:string})=>d).handler(async ({data})=>(await import('./auth.server')).verifyEmailOtp(data.contact,data.code))
+export const getSocialConfig = createServerFn({ method: 'GET' }).handler(async ()=>(await import('./better-auth.server')).authProviderConfig())

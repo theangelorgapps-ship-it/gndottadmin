@@ -1,7 +1,9 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 import { adminListChannels, adminUpsertChannel, adminDeleteChannel } from '../../lib/admin'
-import { img } from '../../components/Poster'
+import { useConfirm } from '../../lib/confirm'
+import { useToast } from '../../lib/toast'
+import { AdminDataTable } from '../../components/AdminDataTable'
 
 export const Route = createFileRoute('/admin/live-tv')({
   loader: async () => await adminListChannels(),
@@ -13,23 +15,41 @@ type CForm = { id?: number; name: string; category_id: number | ''; access: stri
 function AdminLiveTv() {
   const { channels, categories } = Route.useLoaderData()
   const router = useRouter()
+  const confirmAction = useConfirm()
+  const notify = useToast()
   const [editing, setEditing] = useState<CForm | null>(null)
   const [busy, setBusy] = useState(false)
 
   async function save() {
     if (!editing) return
     setBusy(true)
-    await adminUpsertChannel({
-      data: { ...editing, category_id: editing.category_id === '' ? undefined : Number(editing.category_id) },
-    })
-    setBusy(false)
-    setEditing(null)
-    router.invalidate()
+    try {
+      await adminUpsertChannel({
+        data: { ...editing, category_id: editing.category_id === '' ? undefined : Number(editing.category_id) },
+      })
+      notify({ title: editing.id ? 'Channel updated' : 'Channel created', description: editing.name, variant: 'success' })
+      setEditing(null)
+      router.invalidate()
+    } catch (e: any) {
+      notify({ title: 'Save failed', description: e?.message ?? 'Could not save the channel.', variant: 'destructive' })
+    } finally {
+      setBusy(false)
+    }
   }
   async function remove(id: number, name: string) {
-    if (!confirm(`Delete "${name}"?`)) return
-    await adminDeleteChannel({ data: id })
-    router.invalidate()
+    const ok = await confirmAction({
+      title: `Delete "${name}"?`,
+      description: 'The live channel will be removed from the app.',
+      approveLabel: 'Delete',
+    })
+    if (!ok) return
+    try {
+      await adminDeleteChannel({ data: id })
+      notify({ title: 'Channel deleted', description: name, variant: 'success' })
+      router.invalidate()
+    } catch (e: any) {
+      notify({ title: 'Delete failed', description: e?.message ?? 'Could not delete the channel.', variant: 'destructive' })
+    }
   }
 
   return (
@@ -39,33 +59,22 @@ function AdminLiveTv() {
         <span className="spacer" />
         <button className="btn btn-primary" onClick={() => setEditing({ name: '', category_id: '', access: 'free', description: '', status: 1 })}>+ New Channel</button>
       </div>
-      <table className="admin-table">
-        <thead><tr><th>Channel</th><th>Category</th><th>Access</th><th>Status</th><th style={{ width: 150 }}></th></tr></thead>
-        <tbody>
-          {channels.map((c: any) => (
-            <tr key={c.id}>
-              <td>
-                <div className="cell-main">
-                  <img src={img(c.poster_url)} alt="" style={{ width: 46, height: 46, borderRadius: 6 }} />
-                  <span className="cell-title">{c.name}</span>
-                </div>
-              </td>
-              <td>{c.category ?? '—'}</td>
-              <td><span className={`pill ${c.access === 'free' ? 'info' : 'on'}`}>{c.access === 'free' ? 'Free' : 'Paid'}</span></td>
-              <td><span className={`pill ${c.status == 1 ? 'on' : 'off'}`}>{c.status == 1 ? 'Active' : 'Off'}</span></td>
-              <td>
-                <div className="row-actions">
-                  <button className="btn btn-dark btn-xs" onClick={() => setEditing({
-                    id: c.id, name: c.name, category_id: c.category_id ?? '', access: c.access ?? 'free',
-                    description: c.description ?? '', status: c.status ?? 1,
-                  })}>Edit</button>
-                  <button className="btn-danger" onClick={() => remove(c.id, c.name)}>Delete</button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <AdminDataTable
+        rows={channels}
+        columns={[
+          { key: 'poster_url', label: 'Channel', kind: 'img' },
+          { key: 'category', label: 'Category' },
+          { key: 'access', label: 'Access', kind: 'access' },
+          { key: 'status', label: 'Status', kind: 'pill' },
+        ]}
+        searchable={['name', 'category']}
+        busy={busy}
+        onEdit={(c) => setEditing({
+          id: c.id, name: c.name, category_id: c.category_id ?? '', access: c.access ?? 'free',
+          description: c.description ?? '', status: c.status ?? 1,
+        })}
+        onDelete={(c) => remove(c.id, c.name)}
+      />
       {editing && (
         <div className="modal-back" onClick={() => setEditing(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>

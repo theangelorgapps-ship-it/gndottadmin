@@ -1,18 +1,14 @@
 import { useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { adminGetRow, adminUpsertRow, adminDeleteRow } from '../lib/admin'
+import { useConfirm } from '../lib/confirm'
+import { useToast } from '../lib/toast'
+import { AdminDataTable, type DataCol } from './AdminDataTable'
 import { img } from './Poster'
+import { fieldOptions, changeField, type Field } from '../lib/crud-fields'
+export type { Field } from '../lib/crud-fields'
 
-export type Field = {
-  key: string
-  label: string
-  type?: 'text' | 'textarea' | 'number' | 'select' | 'toggle' | 'image' | 'date'
-  options?: { value: string | number; label: string }[]
-  required?: boolean
-  placeholder?: string
-}
-
-export type CrudCol = { key: string; label: string; kind?: 'text' | 'img' | 'pill' | 'money' | 'date' | 'stars' }
+export type CrudCol = DataCol
 
 export function CrudTable({
   title,
@@ -23,6 +19,7 @@ export function CrudTable({
   fields,
   empty,
   readonly = false,
+  singular,
 }: {
   title: string
   group: string
@@ -32,8 +29,12 @@ export function CrudTable({
   fields: Field[]
   empty?: string
   readonly?: boolean
+  singular?: string
 }) {
+  const itemLabel = singular ?? title.replace(/s$/, '')
   const router = useRouter()
+  const confirmAction = useConfirm()
+  const notify = useToast()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Record<string, any> | null>(null)
   const [busy, setBusy] = useState(false)
@@ -48,11 +49,12 @@ export function CrudTable({
       const form = new FormData()
       form.append('file', file)
       const res = await fetch('/api/upload', { method: 'POST', body: form })
-      const data = await res.json()
+      const data = await res.json() as { error?: string; url: string }
       if (!res.ok) throw new Error(data?.error ?? 'Upload failed')
       setEditing((cur: any) => (cur ? { ...cur, [fieldKey]: data.url } : cur))
     } catch (e: any) {
       setError(e?.message ?? 'Upload failed.')
+      notify({ title: 'Upload failed', description: e?.message ?? 'The file could not be uploaded.', variant: 'destructive' })
     } finally {
       setUploading(null)
     }
@@ -87,6 +89,7 @@ export function CrudTable({
       const values: Record<string, any> = {}
       for (const f of fields) {
         let v = editing[f.key]
+        if (f.required && (v == null || String(v).trim() === '')) throw new Error(`${f.label} is required.`)
         if (f.type === 'number') v = v === '' || v == null ? null : Number(v)
         if (f.type === 'toggle') v = v ? 1 : 0
         values[f.key] = v
@@ -94,20 +97,30 @@ export function CrudTable({
       await adminUpsertRow({ data: { entity, id: editing.id, values } })
       setOpen(false)
       setEditing(null)
+      notify({ title: `${itemLabel} saved`, variant: 'success' })
       router.invalidate()
     } catch (e: any) {
       setError(e?.message ?? 'Save failed.')
+      notify({ title: 'Save failed', description: e?.message ?? 'Could not save the record.', variant: 'destructive' })
     } finally {
       setBusy(false)
     }
   }
 
   async function remove(id: number) {
-    if (!confirm('Delete this record?')) return
+    const ok = await confirmAction({
+      title: `Delete this ${itemLabel.toLowerCase()}?`,
+      description: 'This record will be removed from the active list.',
+      approveLabel: 'Delete',
+    })
+    if (!ok) return
     setBusy(true)
     try {
       await adminDeleteRow({ data: { entity, id } })
+      notify({ title: 'Record deleted', variant: 'success' })
       router.invalidate()
+    } catch (e: any) {
+      notify({ title: 'Delete failed', description: e?.message ?? 'Could not delete the record.', variant: 'destructive' })
     } finally {
       setBusy(false)
     }
@@ -121,41 +134,25 @@ export function CrudTable({
         <span className="spacer" />
         {!readonly && fields.length > 0 && (
           <button className="btn btn-primary btn-sm" onClick={openAdd} disabled={busy}>
-            + Add {title.replace(/s$/, '')}
+            + Add {itemLabel}
           </button>
         )}
       </div>
       {error && !open && <div className="error" style={{ marginBottom: 12 }}>{error}</div>}
-      {rows.length === 0 ? (
-        <div className="empty">{empty ?? `No ${title.toLowerCase()} records.`}</div>
-      ) : (
-        <table className="admin-table">
-          <thead>
-            <tr>
-              {columns.map((c) => <th key={c.key}>{c.label}</th>)}
-              {!readonly && <th style={{ width: 120 }}>Actions</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r: any, i: number) => (
-              <tr key={r.id ?? i}>
-                {columns.map((c) => <td key={c.key}>{renderCell(r, c)}</td>)}
-                {!readonly && (
-                  <td className="row-actions">
-                    {fields.length > 0 && <button className="btn btn-dark btn-sm" onClick={() => openEdit(r.id)} disabled={busy}>Edit</button>}
-                    <button className="btn btn-danger btn-sm" onClick={() => remove(r.id)} disabled={busy}>Delete</button>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <AdminDataTable
+        rows={rows}
+        columns={columns}
+        busy={busy}
+        searchable={['name', 'title', 'label']}
+        empty={empty ?? `No ${title.toLowerCase()} records.`}
+        onEdit={!readonly && fields.length > 0 ? (r) => openEdit(r.id) : undefined}
+        onDelete={!readonly ? (r) => remove(r.id) : undefined}
+      />
 
       {open && editing && (
         <div className="modal-backdrop" onClick={() => !busy && setOpen(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <h2>{editing.id ? 'Edit' : 'Add'} {title.replace(/s$/, '')}</h2>
+            <h2>{editing.id ? 'Edit' : 'Add'} {itemLabel}</h2>
             <div className="modal-form">
               {fields.map((f) => (
                 <label key={f.key} className={`mfield ${f.type === 'textarea' ? 'span2' : ''}`}>
@@ -163,9 +160,9 @@ export function CrudTable({
                   {f.type === 'textarea' ? (
                     <textarea rows={3} value={editing[f.key] ?? ''} onChange={(e) => setEditing({ ...editing, [f.key]: e.target.value })} />
                   ) : f.type === 'select' ? (
-                    <select value={editing[f.key] ?? ''} onChange={(e) => setEditing({ ...editing, [f.key]: e.target.value })}>
-                      <option value="">—</option>
-                      {f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    <select value={editing[f.key] ?? ''} disabled={!!f.dependsOn && !editing[f.dependsOn]} onChange={(e) => setEditing(changeField(fields, editing, f.key, e.target.value))}>
+                      <option value="">{f.dependsOn ? 'No group selected' : '—'}</option>
+                      {fieldOptions(f, editing).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
                   ) : f.type === 'toggle' ? (
                     <select value={editing[f.key] ? 1 : 0} onChange={(e) => setEditing({ ...editing, [f.key]: Number(e.target.value) })}>
@@ -203,27 +200,4 @@ export function CrudTable({
       )}
     </div>
   )
-}
-
-function renderCell(r: any, c: CrudCol) {
-  const v = r[c.key]
-  switch (c.kind) {
-    case 'img':
-      return (
-        <div className="cell-main">
-          <img src={img(v)} alt="" />
-          <span className="cell-title">{r[c.key.replace('file_url', 'name').replace('poster_url', 'name')] ?? r.name ?? ''}</span>
-        </div>
-      )
-    case 'pill':
-      return <span className={`pill ${v == 1 ? 'on' : 'off'}`}>{v == 1 ? 'Active' : 'Off'}</span>
-    case 'money':
-      return <>${Number(v ?? 0).toFixed(2)}</>
-    case 'date':
-      return <>{v ? String(v).slice(0, 10) : '—'}</>
-    case 'stars':
-      return <>{'★'.repeat(Math.round(Number(v) || 0))}{'☆'.repeat(5 - Math.round(Number(v) || 0))}</>
-    default:
-      return <>{v ?? '—'}</>
-  }
 }

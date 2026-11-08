@@ -1,15 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { verifySessionToken, SESSION_COOKIE } from '../../lib/session.server'
+import { getSession } from '../../lib/session.server'
 import { first, run } from '../../lib/db'
 
 async function requireAdminUser(request: Request) {
-  const cookie = request.headers.get('cookie') ?? ''
-  const raw = cookie
-    .split(';')
-    .map((s) => s.trim())
-    .find((s) => s.startsWith(SESSION_COOKIE + '='))
-    ?.slice(SESSION_COOKIE.length + 1)
-  const session = await verifySessionToken(raw ? decodeURIComponent(raw) : undefined)
+  const session = await getSession(request.headers)
   if (!session?.uid) return null
   const user = await first<any>(`SELECT user_type FROM users WHERE id = ?`, session.uid)
   return user?.user_type === 'admin' ? session : null

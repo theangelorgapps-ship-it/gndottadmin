@@ -1,54 +1,27 @@
-import { getCookie, setCookie, deleteCookie } from '@tanstack/react-start/server'
+import { env } from 'cloudflare:workers'
+import { deleteCookie, getRequest, getRequestHeaders } from '@tanstack/react-start/server'
+import { getAuth, AUTH_REALM } from './better-auth.server'
+import { eligibleUser } from './better-auth-core'
+import { sameOrigin } from './authCore'
 
-export const SESSION_COOKIE = 'streamit_session'
-const SECRET = 'streamit-d1-local-dev-secret'
-
-async function hmac(data: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(SECRET),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  )
-  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data))
-  return btoa(String.fromCharCode(...new Uint8Array(sig)))
+function protectSessionWrite() {
+  const request = getRequest()
+  if (!['GET', 'HEAD'].includes(request.method)) sameOrigin(request.url, request.headers.get('origin'), request.headers.get('sec-fetch-site'))
 }
 
-export async function sign(payload: object): Promise<string> {
-  const body = btoa(JSON.stringify(payload))
-  return `${body}.${await hmac(body)}`
+// Legacy cookies no longer authenticate. Better Auth owns signed, revocable sessions.
+export const SESSION_COOKIE = '__Secure-halobox-admin.session_token'
+export async function getSession(headers = getRequestHeaders()) {
+  protectSessionWrite()
+  const result = await getAuth().api.getSession({ headers }).catch(() => null)
+  if (!result) return null
+  const user = await eligibleUser((env as any).DB, result.user.id, AUTH_REALM)
+  if (!user) return null
+  return { uid: Number(user.id), email: String(user.email), name: `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim(), pid: (result.session as any).profileId as number | undefined, sessionId: result.session.id }
 }
-
-async function verify(token: string | undefined): Promise<any | null> {
-  if (!token) return null
-  const [body, sig] = token.split('.')
-  if (!body || !sig) return null
-  if ((await hmac(body)) !== sig) return null
-  try {
-    return JSON.parse(atob(body))
-  } catch {
-    return null
-  }
-}
-
-export async function getSession() {
-  return verify(getCookie(SESSION_COOKIE))
-}
-
-export async function setSessionCookie(payload: object) {
-  setCookie(SESSION_COOKIE, await sign(payload), {
-    httpOnly: true,
-    path: '/',
-    maxAge: 60 * 60 * 24 * 30,
-    sameSite: 'lax',
-  })
-}
-
-export function clearSessionCookie() {
-  deleteCookie(SESSION_COOKIE, { path: '/' })
-}
-
-export async function verifySessionToken(token: string | undefined) {
-  return verify(token)
+export async function clearSessionCookie() {
+  protectSessionWrite()
+  await getAuth().api.signOut({ headers: getRequestHeaders() })
+  deleteCookie('streamit_session', { path: '/' })
+  deleteCookie('halobox_admin_session_20261105', { path: '/' })
 }

@@ -27,6 +27,7 @@ import { Route as AdminFaqRouteImport } from './routes/admin/faq'
 import { Route as AdminGenresRouteImport } from './routes/admin/genres'
 import { Route as AdminLanguageRouteImport } from './routes/admin/language'
 import { Route as AdminLiveTvRouteImport } from './routes/admin/live-tv'
+import { Route as AdminLocationsRouteImport } from './routes/admin/locations'
 import { Route as AdminMediaLibraryRouteImport } from './routes/admin/media-library'
 import { Route as AdminMoviesRouteImport } from './routes/admin/movies'
 import { Route as AdminNotificationTemplatesRouteImport } from './routes/admin/notification-templates'
@@ -35,12 +36,14 @@ import { Route as AdminPagesRouteImport } from './routes/admin/pages'
 import { Route as AdminPlanLimitsRouteImport } from './routes/admin/plan-limits'
 import { Route as AdminPlansRouteImport } from './routes/admin/plans'
 import { Route as AdminRentHistoryRouteImport } from './routes/admin/rent-history'
-import { Route as AdminReviewsRouteImport } from './routes/admin/reviews'
-import { Route as AdminSeasonsRouteImport } from './routes/admin/seasons'
+import { Route as AdminSeriesRouteImport } from './routes/admin/series'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as AdminSoonToExpireRouteImport } from './routes/admin/soon-to-expire'
 import { Route as AdminSubscriptionsRouteImport } from './routes/admin/subscriptions'
 import { Route as AdminTaxRouteImport } from './routes/admin/tax'
+import { Route as AdminTeachingRouteImport } from './routes/admin/teaching'
+import { Route as AdminTeachingEpisodesRouteImport } from './routes/admin/teaching-episodes'
+import { Route as AdminTeachingVolumesRouteImport } from './routes/admin/teaching-volumes'
 import { Route as AdminTvCategoryRouteImport } from './routes/admin/tv-category'
 import { Route as AdminTvShowsRouteImport } from './routes/admin/tv-shows'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
@@ -51,6 +54,8 @@ import { Route as ApiBunnyUploadRouteImport } from './routes/api/bunny-upload'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
 import { Route as MediaSplatRouteImport } from './routes/media/$'
 import { Route as AdminUserIdRouteImport } from './routes/admin/user.$id'
+import { Route as ApiAccountMediaSplatRouteImport } from './routes/api/account-media/$'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -142,6 +147,11 @@ const AdminLiveTvRoute = AdminLiveTvRouteImport.update({
   path: '/live-tv',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminLocationsRoute = AdminLocationsRouteImport.update({
+  id: '/locations',
+  path: '/locations',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminMediaLibraryRoute = AdminMediaLibraryRouteImport.update({
   id: '/media-library',
   path: '/media-library',
@@ -183,14 +193,9 @@ const AdminRentHistoryRoute = AdminRentHistoryRouteImport.update({
   path: '/rent-history',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminReviewsRoute = AdminReviewsRouteImport.update({
-  id: '/reviews',
-  path: '/reviews',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminSeasonsRoute = AdminSeasonsRouteImport.update({
-  id: '/seasons',
-  path: '/seasons',
+const AdminSeriesRoute = AdminSeriesRouteImport.update({
+  id: '/series',
+  path: '/series',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminSettingsRoute = AdminSettingsRouteImport.update({
@@ -211,6 +216,21 @@ const AdminSubscriptionsRoute = AdminSubscriptionsRouteImport.update({
 const AdminTaxRoute = AdminTaxRouteImport.update({
   id: '/tax',
   path: '/tax',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminTeachingRoute = AdminTeachingRouteImport.update({
+  id: '/teaching',
+  path: '/teaching',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminTeachingEpisodesRoute = AdminTeachingEpisodesRouteImport.update({
+  id: '/teaching-episodes',
+  path: '/teaching-episodes',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminTeachingVolumesRoute = AdminTeachingVolumesRouteImport.update({
+  id: '/teaching-volumes',
+  path: '/teaching-volumes',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminTvCategoryRoute = AdminTvCategoryRouteImport.update({
@@ -263,6 +283,16 @@ const AdminUserIdRoute = AdminUserIdRouteImport.update({
   path: '/user/$id',
   getParentRoute: () => AdminRoute,
 } as any)
+const ApiAccountMediaSplatRoute = ApiAccountMediaSplatRouteImport.update({
+  id: '/api/account-media/$',
+  path: '/api/account-media/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -282,6 +312,7 @@ export interface FileRoutesByFullPath {
   '/admin/genres': typeof AdminGenresRoute
   '/admin/language': typeof AdminLanguageRoute
   '/admin/live-tv': typeof AdminLiveTvRoute
+  '/admin/locations': typeof AdminLocationsRoute
   '/admin/media-library': typeof AdminMediaLibraryRoute
   '/admin/movies': typeof AdminMoviesRoute
   '/admin/notification-templates': typeof AdminNotificationTemplatesRoute
@@ -290,12 +321,14 @@ export interface FileRoutesByFullPath {
   '/admin/plan-limits': typeof AdminPlanLimitsRoute
   '/admin/plans': typeof AdminPlansRoute
   '/admin/rent-history': typeof AdminRentHistoryRoute
-  '/admin/reviews': typeof AdminReviewsRoute
-  '/admin/seasons': typeof AdminSeasonsRoute
+  '/admin/series': typeof AdminSeriesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/soon-to-expire': typeof AdminSoonToExpireRoute
   '/admin/subscriptions': typeof AdminSubscriptionsRoute
   '/admin/tax': typeof AdminTaxRoute
+  '/admin/teaching': typeof AdminTeachingRoute
+  '/admin/teaching-episodes': typeof AdminTeachingEpisodesRoute
+  '/admin/teaching-volumes': typeof AdminTeachingVolumesRoute
   '/admin/tv-category': typeof AdminTvCategoryRoute
   '/admin/tv-shows': typeof AdminTvShowsRoute
   '/admin/users': typeof AdminUsersRoute
@@ -307,6 +340,8 @@ export interface FileRoutesByFullPath {
   '/media/$': typeof MediaSplatRoute
   '/admin/': typeof AdminIndexRoute
   '/admin/user/$id': typeof AdminUserIdRoute
+  '/api/account-media/$': typeof ApiAccountMediaSplatRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -325,6 +360,7 @@ export interface FileRoutesByTo {
   '/admin/genres': typeof AdminGenresRoute
   '/admin/language': typeof AdminLanguageRoute
   '/admin/live-tv': typeof AdminLiveTvRoute
+  '/admin/locations': typeof AdminLocationsRoute
   '/admin/media-library': typeof AdminMediaLibraryRoute
   '/admin/movies': typeof AdminMoviesRoute
   '/admin/notification-templates': typeof AdminNotificationTemplatesRoute
@@ -333,12 +369,14 @@ export interface FileRoutesByTo {
   '/admin/plan-limits': typeof AdminPlanLimitsRoute
   '/admin/plans': typeof AdminPlansRoute
   '/admin/rent-history': typeof AdminRentHistoryRoute
-  '/admin/reviews': typeof AdminReviewsRoute
-  '/admin/seasons': typeof AdminSeasonsRoute
+  '/admin/series': typeof AdminSeriesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/soon-to-expire': typeof AdminSoonToExpireRoute
   '/admin/subscriptions': typeof AdminSubscriptionsRoute
   '/admin/tax': typeof AdminTaxRoute
+  '/admin/teaching': typeof AdminTeachingRoute
+  '/admin/teaching-episodes': typeof AdminTeachingEpisodesRoute
+  '/admin/teaching-volumes': typeof AdminTeachingVolumesRoute
   '/admin/tv-category': typeof AdminTvCategoryRoute
   '/admin/tv-shows': typeof AdminTvShowsRoute
   '/admin/users': typeof AdminUsersRoute
@@ -350,6 +388,8 @@ export interface FileRoutesByTo {
   '/media/$': typeof MediaSplatRoute
   '/admin': typeof AdminIndexRoute
   '/admin/user/$id': typeof AdminUserIdRoute
+  '/api/account-media/$': typeof ApiAccountMediaSplatRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -370,6 +410,7 @@ export interface FileRoutesById {
   '/admin/genres': typeof AdminGenresRoute
   '/admin/language': typeof AdminLanguageRoute
   '/admin/live-tv': typeof AdminLiveTvRoute
+  '/admin/locations': typeof AdminLocationsRoute
   '/admin/media-library': typeof AdminMediaLibraryRoute
   '/admin/movies': typeof AdminMoviesRoute
   '/admin/notification-templates': typeof AdminNotificationTemplatesRoute
@@ -378,12 +419,14 @@ export interface FileRoutesById {
   '/admin/plan-limits': typeof AdminPlanLimitsRoute
   '/admin/plans': typeof AdminPlansRoute
   '/admin/rent-history': typeof AdminRentHistoryRoute
-  '/admin/reviews': typeof AdminReviewsRoute
-  '/admin/seasons': typeof AdminSeasonsRoute
+  '/admin/series': typeof AdminSeriesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/soon-to-expire': typeof AdminSoonToExpireRoute
   '/admin/subscriptions': typeof AdminSubscriptionsRoute
   '/admin/tax': typeof AdminTaxRoute
+  '/admin/teaching': typeof AdminTeachingRoute
+  '/admin/teaching-episodes': typeof AdminTeachingEpisodesRoute
+  '/admin/teaching-volumes': typeof AdminTeachingVolumesRoute
   '/admin/tv-category': typeof AdminTvCategoryRoute
   '/admin/tv-shows': typeof AdminTvShowsRoute
   '/admin/users': typeof AdminUsersRoute
@@ -395,6 +438,8 @@ export interface FileRoutesById {
   '/media/$': typeof MediaSplatRoute
   '/admin/': typeof AdminIndexRoute
   '/admin/user/$id': typeof AdminUserIdRoute
+  '/api/account-media/$': typeof ApiAccountMediaSplatRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -416,6 +461,7 @@ export interface FileRouteTypes {
     | '/admin/genres'
     | '/admin/language'
     | '/admin/live-tv'
+    | '/admin/locations'
     | '/admin/media-library'
     | '/admin/movies'
     | '/admin/notification-templates'
@@ -424,12 +470,14 @@ export interface FileRouteTypes {
     | '/admin/plan-limits'
     | '/admin/plans'
     | '/admin/rent-history'
-    | '/admin/reviews'
-    | '/admin/seasons'
+    | '/admin/series'
     | '/admin/settings'
     | '/admin/soon-to-expire'
     | '/admin/subscriptions'
     | '/admin/tax'
+    | '/admin/teaching'
+    | '/admin/teaching-episodes'
+    | '/admin/teaching-volumes'
     | '/admin/tv-category'
     | '/admin/tv-shows'
     | '/admin/users'
@@ -441,6 +489,8 @@ export interface FileRouteTypes {
     | '/media/$'
     | '/admin/'
     | '/admin/user/$id'
+    | '/api/account-media/$'
+    | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -459,6 +509,7 @@ export interface FileRouteTypes {
     | '/admin/genres'
     | '/admin/language'
     | '/admin/live-tv'
+    | '/admin/locations'
     | '/admin/media-library'
     | '/admin/movies'
     | '/admin/notification-templates'
@@ -467,12 +518,14 @@ export interface FileRouteTypes {
     | '/admin/plan-limits'
     | '/admin/plans'
     | '/admin/rent-history'
-    | '/admin/reviews'
-    | '/admin/seasons'
+    | '/admin/series'
     | '/admin/settings'
     | '/admin/soon-to-expire'
     | '/admin/subscriptions'
     | '/admin/tax'
+    | '/admin/teaching'
+    | '/admin/teaching-episodes'
+    | '/admin/teaching-volumes'
     | '/admin/tv-category'
     | '/admin/tv-shows'
     | '/admin/users'
@@ -484,6 +537,8 @@ export interface FileRouteTypes {
     | '/media/$'
     | '/admin'
     | '/admin/user/$id'
+    | '/api/account-media/$'
+    | '/api/auth/$'
   id:
     | '__root__'
     | '/'
@@ -503,6 +558,7 @@ export interface FileRouteTypes {
     | '/admin/genres'
     | '/admin/language'
     | '/admin/live-tv'
+    | '/admin/locations'
     | '/admin/media-library'
     | '/admin/movies'
     | '/admin/notification-templates'
@@ -511,12 +567,14 @@ export interface FileRouteTypes {
     | '/admin/plan-limits'
     | '/admin/plans'
     | '/admin/rent-history'
-    | '/admin/reviews'
-    | '/admin/seasons'
+    | '/admin/series'
     | '/admin/settings'
     | '/admin/soon-to-expire'
     | '/admin/subscriptions'
     | '/admin/tax'
+    | '/admin/teaching'
+    | '/admin/teaching-episodes'
+    | '/admin/teaching-volumes'
     | '/admin/tv-category'
     | '/admin/tv-shows'
     | '/admin/users'
@@ -528,6 +586,8 @@ export interface FileRouteTypes {
     | '/media/$'
     | '/admin/'
     | '/admin/user/$id'
+    | '/api/account-media/$'
+    | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -537,6 +597,8 @@ export interface RootRouteChildren {
   ApiBunnyUploadRoute: typeof ApiBunnyUploadRoute
   ApiUploadRoute: typeof ApiUploadRoute
   MediaSplatRoute: typeof MediaSplatRoute
+  ApiAccountMediaSplatRoute: typeof ApiAccountMediaSplatRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -667,6 +729,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminLiveTvRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/locations': {
+      id: '/admin/locations'
+      path: '/locations'
+      fullPath: '/admin/locations'
+      preLoaderRoute: typeof AdminLocationsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/media-library': {
       id: '/admin/media-library'
       path: '/media-library'
@@ -723,18 +792,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRentHistoryRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/admin/reviews': {
-      id: '/admin/reviews'
-      path: '/reviews'
-      fullPath: '/admin/reviews'
-      preLoaderRoute: typeof AdminReviewsRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/seasons': {
-      id: '/admin/seasons'
-      path: '/seasons'
-      fullPath: '/admin/seasons'
-      preLoaderRoute: typeof AdminSeasonsRouteImport
+    '/admin/series': {
+      id: '/admin/series'
+      path: '/series'
+      fullPath: '/admin/series'
+      preLoaderRoute: typeof AdminSeriesRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/settings': {
@@ -763,6 +825,27 @@ declare module '@tanstack/react-router' {
       path: '/tax'
       fullPath: '/admin/tax'
       preLoaderRoute: typeof AdminTaxRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/teaching': {
+      id: '/admin/teaching'
+      path: '/teaching'
+      fullPath: '/admin/teaching'
+      preLoaderRoute: typeof AdminTeachingRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/teaching-episodes': {
+      id: '/admin/teaching-episodes'
+      path: '/teaching-episodes'
+      fullPath: '/admin/teaching-episodes'
+      preLoaderRoute: typeof AdminTeachingEpisodesRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/teaching-volumes': {
+      id: '/admin/teaching-volumes'
+      path: '/teaching-volumes'
+      fullPath: '/admin/teaching-volumes'
+      preLoaderRoute: typeof AdminTeachingVolumesRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/tv-category': {
@@ -835,6 +918,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminUserIdRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/api/account-media/$': {
+      id: '/api/account-media/$'
+      path: '/api/account-media/$'
+      fullPath: '/api/account-media/$'
+      preLoaderRoute: typeof ApiAccountMediaSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -853,6 +950,7 @@ interface AdminRouteChildren {
   AdminGenresRoute: typeof AdminGenresRoute
   AdminLanguageRoute: typeof AdminLanguageRoute
   AdminLiveTvRoute: typeof AdminLiveTvRoute
+  AdminLocationsRoute: typeof AdminLocationsRoute
   AdminMediaLibraryRoute: typeof AdminMediaLibraryRoute
   AdminMoviesRoute: typeof AdminMoviesRoute
   AdminNotificationTemplatesRoute: typeof AdminNotificationTemplatesRoute
@@ -861,12 +959,14 @@ interface AdminRouteChildren {
   AdminPlanLimitsRoute: typeof AdminPlanLimitsRoute
   AdminPlansRoute: typeof AdminPlansRoute
   AdminRentHistoryRoute: typeof AdminRentHistoryRoute
-  AdminReviewsRoute: typeof AdminReviewsRoute
-  AdminSeasonsRoute: typeof AdminSeasonsRoute
+  AdminSeriesRoute: typeof AdminSeriesRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminSoonToExpireRoute: typeof AdminSoonToExpireRoute
   AdminSubscriptionsRoute: typeof AdminSubscriptionsRoute
   AdminTaxRoute: typeof AdminTaxRoute
+  AdminTeachingRoute: typeof AdminTeachingRoute
+  AdminTeachingEpisodesRoute: typeof AdminTeachingEpisodesRoute
+  AdminTeachingVolumesRoute: typeof AdminTeachingVolumesRoute
   AdminTvCategoryRoute: typeof AdminTvCategoryRoute
   AdminTvShowsRoute: typeof AdminTvShowsRoute
   AdminUsersRoute: typeof AdminUsersRoute
@@ -892,6 +992,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminGenresRoute: AdminGenresRoute,
   AdminLanguageRoute: AdminLanguageRoute,
   AdminLiveTvRoute: AdminLiveTvRoute,
+  AdminLocationsRoute: AdminLocationsRoute,
   AdminMediaLibraryRoute: AdminMediaLibraryRoute,
   AdminMoviesRoute: AdminMoviesRoute,
   AdminNotificationTemplatesRoute: AdminNotificationTemplatesRoute,
@@ -900,12 +1001,14 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminPlanLimitsRoute: AdminPlanLimitsRoute,
   AdminPlansRoute: AdminPlansRoute,
   AdminRentHistoryRoute: AdminRentHistoryRoute,
-  AdminReviewsRoute: AdminReviewsRoute,
-  AdminSeasonsRoute: AdminSeasonsRoute,
+  AdminSeriesRoute: AdminSeriesRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   AdminSoonToExpireRoute: AdminSoonToExpireRoute,
   AdminSubscriptionsRoute: AdminSubscriptionsRoute,
   AdminTaxRoute: AdminTaxRoute,
+  AdminTeachingRoute: AdminTeachingRoute,
+  AdminTeachingEpisodesRoute: AdminTeachingEpisodesRoute,
+  AdminTeachingVolumesRoute: AdminTeachingVolumesRoute,
   AdminTvCategoryRoute: AdminTvCategoryRoute,
   AdminTvShowsRoute: AdminTvShowsRoute,
   AdminUsersRoute: AdminUsersRoute,
@@ -925,16 +1028,19 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBunnyUploadRoute: ApiBunnyUploadRoute,
   ApiUploadRoute: ApiUploadRoute,
   MediaSplatRoute: MediaSplatRoute,
+  ApiAccountMediaSplatRoute: ApiAccountMediaSplatRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
+import type { startInstance } from './start.ts'
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
     router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
   }
 }

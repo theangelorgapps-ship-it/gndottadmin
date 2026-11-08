@@ -3,6 +3,8 @@ import { useState } from 'react'
 import {
   adminTable, adminGetRole, adminUpsertRole, adminDeleteRole, adminListPermissions,
 } from '../../lib/admin'
+import { useConfirm } from '../../lib/confirm'
+import { useToast } from '../../lib/toast'
 
 export const Route = createFileRoute('/admin/access-control')({
   loader: async () => {
@@ -120,6 +122,8 @@ function RoleEditor({
 function Page() {
   const { roles, permissions } = Route.useLoaderData() as any
   const router = useRouter()
+  const confirmAction = useConfirm()
+  const notify = useToast()
   const [editing, setEditing] = useState<any>(null)
 
   async function openEdit(id: number) {
@@ -127,7 +131,7 @@ function Page() {
       const role: any = await adminGetRole({ data: id })
       setEditing(role)
     } catch (e: any) {
-      alert(e?.message ?? 'Could not load role.')
+      notify({ title: 'Could not load role', description: e?.message ?? 'Please try again.', variant: 'destructive' })
     }
   }
 
@@ -138,6 +142,7 @@ function Page() {
         <span className="spacer" />
         <button className="btn btn-primary" onClick={() => setEditing({ name: '', title: '', permission_ids: [] })}>+ New Role</button>
       </div>
+      <div className="table-scroll">
       <table className="admin-table">
         <thead>
           <tr><th>Role</th><th>Name</th><th>Users</th><th>Permissions</th><th style={{ width: 150 }}></th></tr>
@@ -156,12 +161,18 @@ function Page() {
                     <button
                       className="btn-danger"
                       onClick={async () => {
-                        if (!confirm(`Delete role "${r.name}"?`)) return
+                        const ok = await confirmAction({
+                          title: `Delete role "${r.name}"?`,
+                          description: 'Users assigned this role will lose its permissions.',
+                          approveLabel: 'Delete',
+                        })
+                        if (!ok) return
                         try {
                           await adminDeleteRole({ data: r.id })
+                          notify({ title: 'Role deleted', description: r.name, variant: 'success' })
                           router.invalidate()
                         } catch (e: any) {
-                          alert(e?.message ?? 'Delete failed.')
+                          notify({ title: 'Delete failed', description: e?.message ?? 'Could not delete the role.', variant: 'destructive' })
                         }
                       }}
                     >Delete</button>
@@ -172,11 +183,18 @@ function Page() {
           ))}
         </tbody>
       </table>
+      </div>
       {editing && (
         <RoleEditor
           role={editing}
           permissions={permissions}
-          onClose={(saved) => { setEditing(null); if (saved) router.invalidate() }}
+          onClose={(saved) => {
+            setEditing(null)
+            if (saved) {
+              notify({ title: 'Role saved', variant: 'success' })
+              router.invalidate()
+            }
+          }}
         />
       )}
     </div>

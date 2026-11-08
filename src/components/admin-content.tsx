@@ -3,7 +3,12 @@ import { useRouter } from '@tanstack/react-router'
 import {
   adminUpsertContent, adminDeleteContent, adminGetContent, adminContentOptions, type ContentInput,
 } from '../lib/admin'
+import { useConfirm } from '../lib/confirm'
+import { useToast } from '../lib/toast'
+import { AdminDataTable } from './AdminDataTable'
 import { img } from './Poster'
+
+const TYPE_LABEL = { movie: 'Sermon', tvshow: 'Show', teaching: 'Teaching' } as const
 
 const EMPTY: ContentInput = {
   name: '', type: 'movie', description: '', release_date: '', language: 'english',
@@ -21,6 +26,7 @@ function Field({ label, children, span }: { label: string; children: React.React
 
 function UploadButton({ onDone, accept }: { onDone: (url: string) => void; accept?: string }) {
   const [busy, setBusy] = useState(false)
+  const notify = useToast()
   return (
     <label className="btn btn-dark btn-xs" style={{ cursor: 'pointer' }}>
       {busy ? 'Uploading…' : 'Upload'}
@@ -39,7 +45,7 @@ function UploadButton({ onDone, accept }: { onDone: (url: string) => void; accep
           const json: any = await res.json().catch(() => null)
           setBusy(false)
           if (json?.ok) onDone(json.url)
-          else alert(json?.error ?? 'Upload failed')
+          else notify({ title: 'Upload failed', description: json?.error ?? 'The file could not be uploaded.', variant: 'destructive' })
           e.target.value = ''
         }}
       />
@@ -52,6 +58,7 @@ function BunnyUploadButton({
 }: { contentId?: number; title: string; onDone: (videoId: string) => void }) {
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<string | null>(null)
+  const notify = useToast()
   return (
     <label className="btn btn-dark btn-xs" style={{ cursor: 'pointer' }}>
       {busy ? (progress ?? 'Uploading to Bunny…') : 'Upload to Bunny Stream'}
@@ -76,8 +83,12 @@ function BunnyUploadButton({
           const json: any = await res.json().catch(() => null)
           setBusy(false)
           setProgress(null)
-          if (json?.ok) onDone(json.videoId)
-          else alert(json?.error ?? 'Bunny upload failed')
+          if (json?.ok) {
+            notify({ title: 'Upload complete', description: 'The video was uploaded to Bunny Stream.', variant: 'success' })
+            onDone(json.videoId)
+          } else {
+            notify({ title: 'Bunny upload failed', description: json?.error ?? 'The video could not be uploaded.', variant: 'destructive' })
+          }
           e.target.value = ''
         }}
       />
@@ -93,8 +104,10 @@ const FORM_TABS = [
   { key: 'cast', label: 'Cast & Genres' },
 ]
 
-export function ContentAdmin({ items, type, title }: { items: any[]; type: 'movie' | 'tvshow'; title: string }) {
+export function ContentAdmin({ items, type, title }: { items: any[]; type: 'movie' | 'tvshow' | 'teaching'; title: string }) {
   const router = useRouter()
+  const confirmAction = useConfirm()
+  const notify = useToast()
   const [editing, setEditing] = useState<ContentInput | null>(null)
   const [formTab, setFormTab] = useState('general')
   const [options, setOptions] = useState<{ genres: any[]; cast: any[]; plans: any[] } | null>(null)
@@ -115,7 +128,7 @@ export function ContentAdmin({ items, type, title }: { items: any[]; type: 'movi
       setEditing({ ...row, type })
       setFormTab('general')
     } catch (e: any) {
-      alert(e?.message ?? 'Could not load record.')
+      notify({ title: 'Could not load record', description: e?.message ?? 'Please try again.', variant: 'destructive' })
     }
   }
 
@@ -125,19 +138,31 @@ export function ContentAdmin({ items, type, title }: { items: any[]; type: 'movi
     setError(null)
     try {
       await adminUpsertContent({ data: { ...editing, type } })
+      notify({ title: editing.id ? `${title.replace(/s$/, '')} updated` : `${title.replace(/s$/, '')} created`, description: editing.name, variant: 'success' })
       setEditing(null)
       router.invalidate()
     } catch (e: any) {
       setError(e?.message ?? 'Save failed.')
+      notify({ title: 'Save failed', description: e?.message ?? 'Could not save the record.', variant: 'destructive' })
     } finally {
       setBusy(false)
     }
   }
 
   async function remove(id: number, name: string) {
-    if (!confirm(`Delete "${name}"? This can be undone from the database.`)) return
-    await adminDeleteContent({ data: id })
-    router.invalidate()
+    const ok = await confirmAction({
+      title: `Delete "${name}"?`,
+      description: 'This can be undone from the database.',
+      approveLabel: 'Delete',
+    })
+    if (!ok) return
+    try {
+      await adminDeleteContent({ data: id })
+      notify({ title: `${title.replace(/s$/, '')} deleted`, description: name, variant: 'success' })
+      router.invalidate()
+    } catch (e: any) {
+      notify({ title: 'Delete failed', description: e?.message ?? 'Could not delete the record.', variant: 'destructive' })
+    }
   }
 
   const set = (patch: Partial<ContentInput>) => setEditing((cur) => (cur ? { ...cur, ...patch } : cur))
@@ -150,49 +175,27 @@ export function ContentAdmin({ items, type, title }: { items: any[]; type: 'movi
       <div className="toolbar">
         <input type="search" placeholder="Search…" value={query} onChange={(e) => setQuery(e.target.value)} />
         <span className="spacer" />
-        <button className="btn btn-primary" onClick={() => { setEditing({ ...EMPTY, type }); setFormTab('general') }}>+ New {type === 'movie' ? 'Movie' : 'TV Show'}</button>
+        <button className="btn btn-primary" onClick={() => { setEditing({ ...EMPTY, type }); setFormTab('general') }}>+ New {TYPE_LABEL[type]}</button>
       </div>
-      <table className="admin-table">
-        <thead>
-          <tr>
-            <th>{type === 'movie' ? 'Movie' : 'TV Show'}</th>
-            <th>Access</th><th>Language</th><th>Rating</th><th>Status</th><th style={{ width: 150 }}></th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((m) => (
-            <tr key={m.id}>
-              <td>
-                <div className="cell-main">
-                  <img src={img(m.poster_url)} alt="" />
-                  <div>
-                    <div className="cell-title">{m.name}</div>
-                    <div className="cell-sub">{m.release_date ? String(m.release_date).slice(0, 10) : '—'}</div>
-                  </div>
-                </div>
-              </td>
-              <td><span className={`pill ${m.movie_access === 'free' ? 'info' : 'on'}`}>{m.movie_access === 'free' ? 'Free' : 'Paid'}</span></td>
-              <td style={{ textTransform: 'capitalize' }}>{m.language ?? '—'}</td>
-              <td>{m.IMDb_rating ?? '—'}</td>
-              <td><span className={`pill ${m.status == 1 ? 'on' : 'off'}`}>{m.status == 1 ? 'Active' : 'Off'}</span></td>
-              <td>
-                <div className="row-actions">
-                  <button className="btn btn-dark btn-xs" onClick={() => openEdit(m.id)}>Edit</button>
-                  <button className="btn-danger" onClick={() => remove(m.id, m.name)}>Delete</button>
-                </div>
-              </td>
-            </tr>
-          ))}
-          {filtered.length === 0 && (
-            <tr><td colSpan={6} style={{ textAlign: 'center', padding: 30 }}>No {title.toLowerCase()} found.</td></tr>
-          )}
-        </tbody>
-      </table>
+      <AdminDataTable
+        rows={filtered}
+        columns={[
+          { key: 'poster_url', label: TYPE_LABEL[type], kind: 'img' },
+          { key: 'movie_access', label: 'Access', kind: 'access' },
+          { key: 'language', label: 'Language' },
+          { key: 'IMDb_rating', label: 'Rating' },
+          { key: 'status', label: 'Status', kind: 'pill' },
+        ]}
+        busy={busy}
+        empty={`No ${title.toLowerCase()} found.`}
+        onEdit={(m) => openEdit(m.id)}
+        onDelete={(m) => remove(m.id, m.name)}
+      />
 
       {editing && (
         <div className="modal-back" onClick={() => setEditing(null)}>
           <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
-            <h2>{editing.id ? 'Edit' : 'New'} {type === 'movie' ? 'Movie' : 'TV Show'}</h2>
+            <h2>{editing.id ? 'Edit' : 'New'} {TYPE_LABEL[type]}</h2>
             <div className="tabs" style={{ marginBottom: 16 }}>
               {FORM_TABS.map((t) => (
                 <button key={t.key} className={formTab === t.key ? 'active' : ''} onClick={() => setFormTab(t.key)}>{t.label}</button>
@@ -245,14 +248,14 @@ export function ContentAdmin({ items, type, title }: { items: any[]; type: 'movi
                 <Field label="Bunny Stream Video ID" span>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <input
-                      placeholder="Paste Bunny video ID (guid) to embed"
+                      placeholder="Paste a Bunny video ID, link, or iframe embed"
                       value={editing.bunny_video_url ?? ''}
                       onChange={(e) => set({ bunny_video_url: e.target.value })}
                       style={{ flex: 1 }}
                     />
                     <BunnyUploadButton contentId={editing.id} title={editing.name} onDone={(vid) => set({ bunny_video_url: vid })} />
                   </div>
-                  <small style={{ color: 'var(--muted)' }}>Set your Library ID + API Key in Settings → Bunny Stream. Uploading attaches the new video to this title.</small>
+                  <small style={{ color: 'var(--muted)' }}>Paste an existing Bunny video to reuse it. Upload only when adding a new video.</small>
                 </Field>
                 <Field label="Bunny Trailer Video ID">
                   <input value={editing.bunny_trailer_url ?? ''} onChange={(e) => set({ bunny_trailer_url: e.target.value })} />

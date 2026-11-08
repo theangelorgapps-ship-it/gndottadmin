@@ -1,19 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { env } from 'cloudflare:workers'
-import { verifySessionToken, SESSION_COOKIE } from '../../lib/session.server'
+import { getSession } from '../../lib/session.server'
 import { first } from '../../lib/db'
 
 export const Route = createFileRoute('/api/upload')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const cookie = request.headers.get('cookie') ?? ''
-        const raw = cookie
-          .split(';')
-          .map((s) => s.trim())
-          .find((s) => s.startsWith(SESSION_COOKIE + '='))
-          ?.slice(SESSION_COOKIE.length + 1)
-        const session = await verifySessionToken(raw ? decodeURIComponent(raw) : undefined)
+        const session = await getSession(request.headers)
         if (!session?.uid) return Response.json({ error: 'unauthorized' }, { status: 401 })
         const user = await first<any>(`SELECT user_type FROM users WHERE id = ?`, session.uid)
         if (user?.user_type !== 'admin') return Response.json({ error: 'forbidden' }, { status: 403 })

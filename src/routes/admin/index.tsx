@@ -1,6 +1,11 @@
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
+import { Pie, PieChart } from 'recharts'
 import { getAdminStats } from '../../lib/admin'
+import {
+  ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent,
+  type ChartConfig,
+} from '../../components/ui/chart'
 
 export const Route = createFileRoute('/admin/')({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -22,6 +27,7 @@ const PATHS: Record<string, string> = {
   play: 'M6 4.5v15l13-7.5z',
   radio: 'M12 12a2 2 0 1 0 0 .01 M7.7 16.3a5.5 5.5 0 0 1 0-8.6 M16.3 7.7a5.5 5.5 0 0 1 0 8.6 M4.6 19.4a10 10 0 0 1 0-14.8 M19.4 4.6a10 10 0 0 1 0 14.8',
   tag: 'M12.6 2.6 21 11a2 2 0 0 1 0 2.8l-7.2 7.2a2 2 0 0 1-2.8 0L2.6 12.6A2 2 0 0 1 2 11.2V4a2 2 0 0 1 2-2h7.2a2 2 0 0 1 1.4.6 M7.5 7.5h.01',
+  book: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20 M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z',
   layers: 'M12 2 2 8l10 6 10-6z M2 14l10 6 10-6',
   dollar: 'M12 2v20 M17 5.5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
 }
@@ -39,16 +45,24 @@ const CARDS: { key: string; label: string; to: string; icon: string }[] = [
   { key: 'users', label: 'Total Users', to: '/admin/users', icon: 'users' },
   { key: 'activeSubs', label: 'Total Subscribers', to: '/admin/subscriptions', icon: 'crown' },
   { key: 'soonToExpire', label: 'Total Soon to Expire', to: '/admin/soon-to-expire', icon: 'layers' },
-  { key: 'reviews', label: 'Total Reviews', to: '/admin/reviews', icon: 'tag' },
+  { key: 'teaching', label: 'Teaching', to: '/admin/teaching', icon: 'book' },
   { key: 'rentContent', label: 'Rent Content', to: '/admin/rent-history', icon: 'play' },
-  { key: 'movies', label: 'Movies', to: '/admin/movies', icon: 'film' },
-  { key: 'tvshows', label: 'TV Shows', to: '/admin/tv-shows', icon: 'tv' },
+  { key: 'movies', label: 'Sermons', to: '/admin/movies', icon: 'film' },
+  { key: 'tvshows', label: 'Shows', to: '/admin/tv-shows', icon: 'tv' },
   { key: 'videos', label: 'Videos', to: '/admin/videos', icon: 'play' },
   { key: 'channels', label: 'Live Channels', to: '/admin/live-tv', icon: 'radio' },
   { key: 'genres', label: 'Genres', to: '/admin/genres', icon: 'tag' },
   { key: 'plans', label: 'Plans', to: '/admin/plans', icon: 'layers' },
-  { key: 'cast', label: 'Cast & Crew', to: '/admin/actors', icon: 'users' },
+  { key: 'cast', label: 'Personalities', to: '/admin/actors', icon: 'users' },
 ]
+
+function sparkDelta(series: { m: string; n: number }[]): number {
+  const pts = [...series].reverse().map((r) => Number(r.n) || 0)
+  while (pts.length < 6) pts.unshift(0)
+  const last = pts[pts.length - 1]
+  const prev = pts[pts.length - 2]
+  return prev === 0 ? (last > 0 ? 100 : 0) : Math.round(((last - prev) / prev) * 100)
+}
 
 function Spark({ series }: { series: { m: string; n: number }[] }) {
   const pts = [...series].reverse().map((r) => Number(r.n) || 0)
@@ -59,25 +73,54 @@ function Spark({ series }: { series: { m: string; n: number }[] }) {
   const coords = pts.map((v, i) => [i * step, H - 6 - (v / max) * (H - 14)] as const)
   const line = coords.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
   const area = `${line} L${W},${H} L0,${H} Z`
-  const last = pts[pts.length - 1]
-  const prev = pts[pts.length - 2]
-  const delta = prev === 0 ? (last > 0 ? 100 : 0) : Math.round(((last - prev) / prev) * 100)
   return (
-    <>
-      <svg className="spark" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
-        <defs>
-          <linearGradient id="sparkfill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#1db954" stopOpacity="0.35" />
-            <stop offset="1" stopColor="#1db954" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path d={area} fill="url(#sparkfill)" />
-        <path d={line} fill="none" stroke="#1db954" strokeWidth="2" />
-      </svg>
-      <span className={`delta ${delta < 0 ? 'neg' : ''}`}>
-        {delta >= 0 ? '+' : ''}{delta}% {delta >= 0 ? '↑' : '↓'}
-      </span>
-    </>
+    <svg className="spark" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="sparkfill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#1db954" stopOpacity="0.35" />
+          <stop offset="1" stopColor="#1db954" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill="url(#sparkfill)" />
+      <path d={line} fill="none" stroke="#1db954" strokeWidth="2" />
+    </svg>
+  )
+}
+
+const CC_COLORS = ['green', 'orange', 'blue', 'red']
+
+function DashStatCard({
+  to, icon, label, value, series, colorIndex,
+}: {
+  to: string
+  icon: string
+  label: string
+  value: React.ReactNode
+  series: { m: string; n: number }[]
+  colorIndex: number
+}) {
+  const delta = sparkDelta(series)
+  const pct = Math.min(100, Math.abs(delta))
+  return (
+    <Link to={to as any} className={`dash-card cc-card ${CC_COLORS[colorIndex % CC_COLORS.length]}`}>
+      <div className="cc-card-header">
+        <span className="stat-ico" style={{ marginBottom: 0 }}><Ico d={PATHS[icon]} /></span>
+        <span className="cc-date">{label}</span>
+      </div>
+      <div className="cc-card-body">
+        <h3>{value}</h3>
+        <Spark series={series} />
+      </div>
+      <div className="cc-card-footer">
+        <div className="cc-progress">
+          <span>Trend</span>
+          <div className="cc-progress-bar" style={{ ['--cc-progress' as any]: `${pct}%` }}></div>
+        </div>
+        <span className={`cc-btn-countdown ${delta < 0 ? 'neg' : ''}`}>
+          {delta >= 0 ? '+' : ''}{delta}% {delta >= 0 ? '↑' : '↓'}
+        </span>
+      </div>
+    </Link>
   )
 }
 
@@ -85,37 +128,35 @@ const DONUT_COLORS = ['#e50914', '#b00610', '#ff4d4d', '#7a040c', '#d92632']
 
 function GenreDonut({ data }: { data: { name: string; n: number }[] }) {
   const total = data.reduce((s, g) => s + Number(g.n), 0)
-  const R = 15.9155 // circumference = 100
-  let offset = 25
+  const chartData = data.map((g, i) => ({
+    name: g.name,
+    n: Number(g.n),
+    fill: DONUT_COLORS[i % DONUT_COLORS.length],
+  }))
+  const chartConfig = Object.fromEntries(
+    data.map((g, i) => [g.name, { label: g.name, color: DONUT_COLORS[i % DONUT_COLORS.length] }]),
+  ) satisfies ChartConfig
   return (
     <div className="panel genre-panel">
       <h3>Top 5 Genres</h3>
       {total === 0 ? (
         <p style={{ color: 'var(--muted-2)', fontSize: 13 }}>No genre mappings yet.</p>
       ) : (
-        <>
-          <svg viewBox="0 0 42 42" className="donut" aria-hidden="true">
-            <circle cx="21" cy="21" r={R} fill="none" stroke="#1a242c" strokeWidth="6" />
-            {data.map((g, i) => {
-              const pct = (Number(g.n) / total) * 100
-              const el = (
-                <circle key={g.name} cx="21" cy="21" r={R} fill="none"
-                  stroke={DONUT_COLORS[i % DONUT_COLORS.length]} strokeWidth="6"
-                  strokeDasharray={`${pct} ${100 - pct}`} strokeDashoffset={offset} />
-              )
-              offset -= pct
-              return el
-            })}
-          </svg>
-          <ul className="donut-legend">
-            {data.map((g, i) => (
-              <li key={g.name}>
-                <span className="dot" style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }} />
-                {g.name}
-              </li>
-            ))}
-          </ul>
-        </>
+        <ChartContainer config={chartConfig} className="mx-auto aspect-square max-h-[280px]">
+          <PieChart>
+            <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+            <Pie
+              data={chartData}
+              dataKey="n"
+              nameKey="name"
+              innerRadius={64}
+              outerRadius={104}
+              strokeWidth={4}
+              stroke="var(--bg-soft)"
+            />
+            <ChartLegend content={<ChartLegendContent nameKey="name" />} />
+          </PieChart>
+        </ChartContainer>
       )}
     </div>
   )
@@ -155,30 +196,38 @@ function AdminDashboard() {
       <div className="dash-grid">
         <div>
           <div className="stat-grid">
-            {CARDS.map((c) => (
-              <Link to={c.to as any} className="stat-card" key={c.key}>
-                <span className="stat-ico"><Ico d={PATHS[c.icon]} /></span>
-                <Spark series={(data.monthly as any)[c.key] ?? []} />
-                <span className="lbl">{c.label}</span>
-                <span className="num">{(data.counts as any)[c.key] ?? 0}</span>
-              </Link>
+            {CARDS.map((c, i) => (
+              <DashStatCard
+                key={c.key}
+                to={c.to}
+                icon={c.icon}
+                label={c.label}
+                value={(data.counts as any)[c.key] ?? 0}
+                series={(data.monthly as any)[c.key] ?? []}
+                colorIndex={i}
+              />
             ))}
-            <Link to={'/admin/rent-history' as any} className="stat-card">
-              <span className="stat-ico"><Ico d={PATHS.dollar} /></span>
-              <Spark series={data.monthly.rentContent ?? []} />
-              <span className="lbl">Rent Revenue</span>
-              <span className="num">${Number(data.rentRevenue).toFixed(2)}</span>
-            </Link>
-            <Link to={'/admin/subscriptions' as any} className="stat-card">
-              <span className="stat-ico"><Ico d={PATHS.dollar} /></span>
-              <Spark series={data.monthly.activeSubs ?? []} />
-              <span className="lbl">Total Revenue</span>
-              <span className="num">${Number(data.revenue).toFixed(2)}</span>
-            </Link>
+            <DashStatCard
+              to="/admin/rent-history"
+              icon="dollar"
+              label="Rent Revenue"
+              value={`$${Number(data.rentRevenue).toFixed(2)}`}
+              series={data.monthly.rentContent ?? []}
+              colorIndex={CARDS.length}
+            />
+            <DashStatCard
+              to="/admin/subscriptions"
+              icon="dollar"
+              label="Total Revenue"
+              value={`$${Number(data.revenue).toFixed(2)}`}
+              series={data.monthly.activeSubs ?? []}
+              colorIndex={CARDS.length + 1}
+            />
           </div>
           <div className="admin-2col" style={{ marginTop: 22 }}>
             <div className="panel">
               <h3>Latest Content</h3>
+              <div className="table-scroll">
               <table className="admin-table">
                 <thead>
                   <tr><th>Title</th><th>Type</th><th>Release</th><th>Status</th></tr>
@@ -186,14 +235,15 @@ function AdminDashboard() {
                 <tbody>
                   {data.recentContent.map((m: any) => (
                     <tr key={m.id}>
-                      <td><Link to={(m.type === 'tvshow' ? '/admin/tv-shows' : '/admin/movies') as any}><span className="cell-title">{m.name}</span></Link></td>
-                      <td>{m.type === 'tvshow' ? 'TV Show' : 'Movie'}</td>
+                      <td><Link to={(m.type === 'tvshow' ? '/admin/tv-shows' : m.type === 'teaching' ? '/admin/teaching' : '/admin/movies') as any}><span className="cell-title">{m.name}</span></Link></td>
+                      <td>{m.type === 'tvshow' ? 'Show' : m.type === 'teaching' ? 'Teaching' : 'Sermon'}</td>
                       <td>{m.release_date ? String(m.release_date).slice(0, 10) : '—'}</td>
                       <td><span className={`pill ${m.status == 1 ? 'on' : 'off'}`}>{m.status == 1 ? 'Active' : 'Off'}</span></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
             <div className="panel">
               <h3>Recent Transactions</h3>

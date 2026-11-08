@@ -1,6 +1,9 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 import { adminListVideos, adminUpsertVideo, adminDeleteVideo, adminGetVideo } from '../../lib/admin'
+import { useConfirm } from '../../lib/confirm'
+import { useToast } from '../../lib/toast'
+import { AdminDataTable } from '../../components/AdminDataTable'
 
 export const Route = createFileRoute('/admin/videos')({
   loader: async () => await adminListVideos(),
@@ -18,6 +21,7 @@ const EMPTY: VForm = { name: '', description: '', duration: '', release_date: ''
 
 function BunnyUploadButton({ videoId, title, onDone }: { videoId?: number; title: string; onDone: (vid: string) => void }) {
   const [busy, setBusy] = useState(false)
+  const notify = useToast()
   return (
     <label className="btn btn-dark btn-xs" style={{ cursor: 'pointer' }}>
       {busy ? 'Uploading to Bunny…' : 'Upload to Bunny Stream'}
@@ -34,8 +38,12 @@ function BunnyUploadButton({ videoId, title, onDone }: { videoId?: number; title
           const res = await fetch('/api/bunny-upload', { method: 'POST', body: fd })
           const json: any = await res.json().catch(() => null)
           setBusy(false)
-          if (json?.ok) onDone(json.videoId)
-          else alert(json?.error ?? 'Bunny upload failed')
+          if (json?.ok) {
+            notify({ title: 'Upload complete', description: 'The video was uploaded to Bunny Stream.', variant: 'success' })
+            onDone(json.videoId)
+          } else {
+            notify({ title: 'Bunny upload failed', description: json?.error ?? 'The video could not be uploaded.', variant: 'destructive' })
+          }
           e.target.value = ''
         }}
       />
@@ -46,6 +54,8 @@ function BunnyUploadButton({ videoId, title, onDone }: { videoId?: number; title
 function AdminVideos() {
   const items = Route.useLoaderData()
   const router = useRouter()
+  const confirmAction = useConfirm()
+  const notify = useToast()
   const [editing, setEditing] = useState<VForm | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -64,7 +74,7 @@ function AdminVideos() {
         meta_title: row.meta_title ?? '', meta_keywords: row.meta_keywords ?? '', meta_description: row.meta_description ?? '',
       })
     } catch (e: any) {
-      alert(e?.message ?? 'Could not load record.')
+      notify({ title: 'Could not load record', description: e?.message ?? 'Please try again.', variant: 'destructive' })
     }
   }
 
@@ -74,18 +84,30 @@ function AdminVideos() {
     setError(null)
     try {
       await adminUpsertVideo({ data: editing })
+      notify({ title: editing.id ? 'Video updated' : 'Video created', description: editing.name, variant: 'success' })
       setEditing(null)
       router.invalidate()
     } catch (e: any) {
       setError(e?.message ?? 'Save failed.')
+      notify({ title: 'Save failed', description: e?.message ?? 'Could not save the video.', variant: 'destructive' })
     } finally {
       setBusy(false)
     }
   }
   async function remove(id: number, name: string) {
-    if (!confirm(`Delete "${name}"?`)) return
-    await adminDeleteVideo({ data: id })
-    router.invalidate()
+    const ok = await confirmAction({
+      title: `Delete "${name}"?`,
+      description: 'The video and its stream mapping will be removed.',
+      approveLabel: 'Delete',
+    })
+    if (!ok) return
+    try {
+      await adminDeleteVideo({ data: id })
+      notify({ title: 'Video deleted', description: name, variant: 'success' })
+      router.invalidate()
+    } catch (e: any) {
+      notify({ title: 'Delete failed', description: e?.message ?? 'Could not delete the video.', variant: 'destructive' })
+    }
   }
 
   const set = (patch: Partial<VForm>) => setEditing((cur) => (cur ? { ...cur, ...patch } : cur))
@@ -97,26 +119,19 @@ function AdminVideos() {
         <span className="spacer" />
         <button className="btn btn-primary" onClick={() => setEditing({ ...EMPTY })}>+ New Video</button>
       </div>
-      <table className="admin-table">
-        <thead><tr><th>Name</th><th>Duration</th><th>Release</th><th>Rating</th><th>Status</th><th style={{ width: 150 }}></th></tr></thead>
-        <tbody>
-          {items.map((v: any) => (
-            <tr key={v.id}>
-              <td><span className="cell-title">{v.name}</span></td>
-              <td>{v.duration ?? '—'}</td>
-              <td>{v.release_date ? String(v.release_date).slice(0, 10) : '—'}</td>
-              <td>{v.IMDb_rating ?? '—'}</td>
-              <td><span className={`pill ${v.status == 1 ? 'on' : 'off'}`}>{v.status == 1 ? 'Active' : 'Off'}</span></td>
-              <td>
-                <div className="row-actions">
-                  <button className="btn btn-dark btn-xs" onClick={() => openEdit(v.id)}>Edit</button>
-                  <button className="btn-danger" onClick={() => remove(v.id, v.name)}>Delete</button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <AdminDataTable
+        rows={items}
+        columns={[
+          { key: 'name', label: 'Name', kind: 'title' },
+          { key: 'duration', label: 'Duration' },
+          { key: 'release_date', label: 'Release', kind: 'date' },
+          { key: 'IMDb_rating', label: 'Rating' },
+          { key: 'status', label: 'Status', kind: 'pill' },
+        ]}
+        searchable={['name']}
+        onEdit={(v) => openEdit(v.id)}
+        onDelete={(v) => remove(v.id, v.name)}
+      />
       {editing && (
         <div className="modal-back" onClick={() => setEditing(null)}>
           <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
@@ -133,7 +148,7 @@ function AdminVideos() {
               <div className="field" style={{ gridColumn: '1 / -1' }}>
                 <label>Bunny Stream Video ID</label>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input placeholder="Paste Bunny video ID (guid) to embed" value={editing.bunny_video_url ?? ''} onChange={(e) => set({ bunny_video_url: e.target.value })} style={{ flex: 1 }} />
+                  <input placeholder="Paste a Bunny video ID, link, or iframe embed" value={editing.bunny_video_url ?? ''} onChange={(e) => set({ bunny_video_url: e.target.value })} style={{ flex: 1 }} />
                   <BunnyUploadButton videoId={editing.id} title={editing.name} onDone={(vid) => set({ bunny_video_url: vid })} />
                 </div>
               </div>

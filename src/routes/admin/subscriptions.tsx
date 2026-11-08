@@ -6,13 +6,17 @@ export const Route = createFileRoute('/admin/subscriptions')({
   component: AdminSubscriptions,
 })
 
+function subscriptionActive(s: {status:unknown;start_date?:string;end_date?:string}) {
+  return s.status === 'active' && !!s.end_date && new Date(s.end_date).getTime() > Date.now() && (!s.start_date || new Date(s.start_date).getTime() <= Date.now())
+}
+
 function AdminSubscriptions() {
   const { subscriptions, transactions } = Route.useLoaderData()
   return (
     <div>
       <div className="breadcrumb">Dashboard <span className="sep">/</span> <span className="here">Subscriptions</span></div>
       <div className="panel" style={{ marginBottom: 20 }}>
-        <h3>Active & past subscriptions</h3>
+        <h3>Active & past subscriptions</h3><p>Each row belongs to the paying owner. Monthly sharing includes 2 email logins / 5 pooled devices; annual sharing includes 4 / 10. Members retain separate accounts and private libraries. Access stops at the paid-through date even when a legacy status still says active.</p>
         <table className="admin-table">
           <thead><tr><th>User</th><th>Plan</th><th>Amount</th><th>Start</th><th>End</th><th>Status</th></tr></thead>
           <tbody>
@@ -23,7 +27,7 @@ function AdminSubscriptions() {
                 <td>${Number(s.total_amount ?? s.amount ?? 0).toFixed(2)}</td>
                 <td>{s.start_date ? String(s.start_date).slice(0, 10) : '—'}</td>
                 <td>{s.end_date ? String(s.end_date).slice(0, 10) : '—'}</td>
-                <td><span className={`pill ${s.status == 1 ? 'on' : 'off'}`}>{s.status == 1 ? 'Active' : 'Ended'}</span></td>
+                <td><span className={`pill ${subscriptionActive(s) ? 'on' : 'off'}`}>{subscriptionActive(s) ? 'Active' : 'Ended'}</span></td>
               </tr>
             ))}
             {subscriptions.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: 26 }}>No subscriptions yet.</td></tr>}

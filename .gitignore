@@ -4,3 +4,9 @@ dist/
 *.log
 .DS_Store
 d1-local.sqlite3
+
+# Local secrets and browser verification artifacts
+.env*
+.dev.vars*
+.playwright-cli/
+output/

@@ -1,3 +1,44 @@
+@layer theme, app, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "tw-animate-css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant fine-hover (@media (hover: hover) and (pointer: fine));
+
+/* shadcn token surface mapped onto the existing Streamit palette */
+@theme {
+  --color-background: #010a0f;
+  --color-foreground: #ffffff;
+  --color-card: #131c24;
+  --color-card-foreground: #ffffff;
+  --color-muted: #1a242e;
+  --color-muted-foreground: #8a9199;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-input: rgba(255, 255, 255, 0.12);
+  --color-ring: #e50914;
+  --color-primary: #e50914;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #1a242e;
+  --color-secondary-foreground: #ffffff;
+  --color-destructive: #e11d48;
+  --color-destructive-foreground: #ffffff;
+  --color-accent: #1a242e;
+  --color-accent-foreground: #ffffff;
+  --color-popover: #1a242e;
+  --color-popover-foreground: #ffffff;
+  --color-sidebar: #0d151c;
+  --color-container: #0d151c;
+  --radius: 8px;
+  --radius-md: 10px;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+@utility rounded-inherit {
+  border-radius: inherit;
+}
+
+@layer app {
 /* Streamit theme — tokens extracted from the Laravel app's own CSS (see design-tokens.md) */
 :root {
   --bg: #010a0f;
@@ -207,7 +248,7 @@ button { font-family: inherit; }
 .footer-bottom .links { display: flex; flex-wrap: wrap; gap: 18px; }
 
 /* ---------- admin ---------- */
-.admin-shell { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; background: var(--bg); }
+.admin-shell { display: flex; min-height: 100vh; background: var(--bg); }
 .admin-side { background: var(--bg-soft); border-right: 1px solid var(--line); padding: 0 0 30px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
 .admin-side .brand-row { display: flex; align-items: center; justify-content: space-between; padding: 18px 18px 14px; border-bottom: 1px solid var(--line); }
 .admin-side .brand-row img { height: 32px; width: 32px; object-fit: cover; border-radius: 4px; }
@@ -220,10 +261,10 @@ button { font-family: inherit; }
 .side-group a.active { color: var(--text); background: var(--card-2); }
 .side-group a.side-sub { padding-left: 34px; font-size: 13px; position: relative; }
 .side-group a.side-sub::before { content: ''; position: absolute; left: 20px; top: 50%; width: 6px; height: 1.5px; background: var(--muted); opacity: 0.6; }
-.admin-body { min-width: 0; display: flex; flex-direction: column; }
+.admin-body { min-width: 0; flex: 1; display: flex; flex-direction: column; }
 .admin-topbar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 14px 26px; border-bottom: 1px solid var(--line); background: var(--bg-soft); }
 .admin-topbar .avatar { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; }
-.admin-main { padding: 24px 26px 40px; }
+.admin-main { padding: 24px 26px 40px; min-width: 0; overflow-x: clip; }
 .breadcrumb { color: var(--muted); font-size: 13.5px; font-weight: 500; margin-bottom: 18px; }
 .breadcrumb .sep { color: var(--muted-2); margin: 0 8px; }
 .breadcrumb .here { color: var(--text); }
@@ -295,7 +336,7 @@ button { font-family: inherit; }
   .hero-title { font-size: 30px; }
   .hero-content { padding: 0 24px; }
   .section, .grid, .tabs { padding-left: 20px; padding-right: 20px; }
-  .admin-shell { grid-template-columns: 1fr; }
+  .admin-shell { flex-direction: column; }
   .admin-side { position: static; height: auto; }
   .stat-grid { grid-template-columns: 1fr 1fr; }
   .dash-grid { grid-template-columns: 1fr; }
@@ -656,5 +697,107 @@ button { font-family: inherit; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
 .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; max-height: 180px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
 .check-item { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text-2, #c9d1d9); cursor: pointer; }
-.date-bar { display: flex; align-items: center; gap: 10px; margin: 4px 0 18px; }
+.date-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 4px 0 18px; }
 .date-bar input[type="date"] { background: var(--card-2, #1a222b); border: 1px solid var(--line); border-radius: 8px; color: var(--text); padding: 7px 10px; font: inherit; }
+
+}
+/* end @layer app */
+
+/* ================= UI amendment: member-list language, toasts, approvals ================= */
+
+/* approval-card heading (shadcn surface token hook) */
+.card-heading { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
+
+/* member-list aesthetic applied to every admin table */
+.admin-table thead th { position: sticky; top: 0; z-index: 5; background: var(--bg-soft); }
+.admin-table tbody tr { transition: background 0.15s; }
+.admin-table tbody tr:hover { background: rgba(255, 255, 255, 0.035); }
+
+/* member-list row components (used by the users list) */
+.ml-shell { background: var(--bg-soft); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.ml-head { display: flex; align-items: center; padding: 8px 24px; font-size: 13px; color: var(--muted-2); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; background: var(--bg-soft); }
+.ml-row { display: flex; align-items: center; padding: 12px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); font-size: 14px; transition: background 0.15s; }
+.ml-row:last-child { border-bottom: none; }
+.ml-row:hover { background: rgba(255, 255, 255, 0.035); }
+.ml-grow { flex: 1; display: flex; align-items: center; gap: 10px; overflow: hidden; min-width: 0; }
+.ml-avatar { position: relative; flex-shrink: 0; }
+.ml-avatar img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; display: block; background: var(--card-2); }
+.ml-dot { position: absolute; right: -2px; bottom: -2px; width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--bg); }
+.ml-id { display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+.ml-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.ml-name:hover { text-decoration: underline; }
+.ml-sub { font-size: 12px; color: var(--muted-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ml-col { width: 128px; flex-shrink: 0; font-size: 12px; color: var(--muted-2); }
+.ml-col-lg { width: 160px; flex-shrink: 0; font-size: 12px; color: var(--muted-2); }
+@media (max-width: 760px) {
+  .ml-col-lg { display: none; }
+  .ml-head .ml-col-lg { display: none; }
+}
+
+/* halo toast host */
+.toast-host { position: fixed; right: 20px; bottom: 20px; z-index: 400; display: flex; flex-direction: column; gap: 12px; width: 380px; max-width: calc(100vw - 40px); }
+
+/* approval dialog backdrop */
+.approval-back { position: fixed; inset: 0; background: rgba(4, 6, 10, 0.72); backdrop-filter: blur(4px); z-index: 300; display: flex; align-items: center; justify-content: center; padding: 20px; }
+
+/* animated sidebar: group titles collapse with the rail */
+.side-caption { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted-2); font-weight: 700; padding: 14px 2px 6px; white-space: nowrap; overflow: hidden; }
+
+/* liquid glass login card */
+.auth-glass-inner { padding: 34px 32px; width: 100%; position: relative; z-index: 30; }
+.auth-card .auth-logo { position: relative; z-index: 30; }
+
+/* ================= course design cards ================= */
+:root {
+  --clr-blue: #1890ff;
+  --clr-green: #01c3a8;
+  --clr-orange: #ffb741;
+  --clr-red: #a63d2a;
+}
+.cc-card { background: #232228; border-radius: 14px; overflow: hidden; color: #fff; display: flex; flex-direction: column; }
+.cc-card.green { --cc-clr: var(--clr-green); }
+.cc-card.orange { --cc-clr: var(--clr-orange); }
+.cc-card.red { --cc-clr: var(--clr-red); }
+.cc-card.blue { --cc-clr: var(--clr-blue); }
+.cc-card-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 18px 6px; color: #c4c2c2; font-size: 13px; }
+.cc-date { font-weight: 500; }
+.cc-card-header svg { width: 18px; height: 18px; opacity: 0.6; }
+.cc-card-body { padding: 2px 18px 14px; }
+.cc-card-body h3 { margin: 0 0 4px; font-size: 18px; text-transform: capitalize; letter-spacing: -0.01em; }
+.cc-card-body p { margin: 0 0 14px; color: #8a9199; font-size: 13px; }
+.cc-progress { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #8a9199; }
+.cc-progress-bar { flex: 1; height: 6px; border-radius: 999px; background: #363636; position: relative; overflow: hidden; }
+.cc-progress-bar::after { content: ''; position: absolute; inset: 0; width: var(--cc-progress, 0%); border-radius: 999px; background: var(--cc-clr, var(--clr-blue)); transition: width 0.4s ease; }
+.cc-card-footer { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: #151419; padding: 12px 18px; margin-top: auto; }
+.cc-card-footer ul { display: flex; margin: 0; padding: 0; list-style: none; }
+.cc-card-footer li { margin-right: -8px; }
+.cc-card-footer li img { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #232228; object-fit: cover; display: block; }
+.cc-btn-add { width: 28px; height: 28px; border-radius: 50%; border: 1px dashed #8a9199; display: inline-flex; align-items: center; justify-content: center; color: #8a9199; }
+.cc-btn-add svg { width: 14px; height: 14px; }
+.cc-btn-countdown { font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 999px; background: color-mix(in oklab, var(--cc-clr, var(--clr-blue)) 18%, transparent); color: var(--cc-clr, var(--clr-blue)); white-space: nowrap; }
+
+/* dashboard stat cards in the course-card design */
+.dash-card { text-decoration: none; color: inherit; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+.dash-card:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35); }
+.dash-card .cc-card-body h3 { font-size: 28px; font-weight: 700; margin: 0 0 6px; }
+.dash-card .spark { width: 100%; height: 44px; display: block; margin: 2px 0 10px; }
+.dash-card .cc-progress { flex: 1; }
+.dash-card .cc-btn-countdown.neg { background: rgba(229, 9, 20, 0.16); color: #ff6b6b; }
+
+/* ================= responsive hardening ================= */
+.table-scroll { overflow-x: auto; width: 100%; }
+.table-scroll .admin-table { min-width: 560px; }
+
+@media (max-width: 560px) {
+  .stat-grid { grid-template-columns: 1fr; }
+  .admin-main { padding: 16px 14px 32px; }
+  .date-bar input[type="date"] { flex: 1; min-width: 0; }
+}
+
+/* settings image fields: upload button + large preview */
+.img-field-col { display: flex; flex-direction: column; gap: 10px; }
+.img-preview-lg { width: 160px; height: 90px; object-fit: contain; border-radius: 8px; border: 1px solid var(--line); background: var(--card); padding: 6px; }
+.settings-grid .mfield select { background: var(--card); border: 1px solid var(--line); border-radius: 6px; color: var(--text); padding: 9px 10px; font-size: 13.5px; font-family: inherit; width: 100%; }
+
+/* Shared provider sign-in controls. */
+.social-sign-in{display:grid;gap:10px;margin-top:20px}.social-sign-in-button{display:flex;align-items:center;justify-content:center;gap:10px;min-height:48px;width:100%;padding:12px 16px;border:1px solid #ffffff30;border-radius:24px;background:#ffffff0d;color:#fff;font:inherit;cursor:pointer}.social-sign-in-button:disabled{opacity:.5;cursor:default}.social-sign-in-button:focus-visible{outline:2px solid #9caeff;outline-offset:3px}.social-sign-in-button small{font-size:11px;opacity:.75}.tv-auth-provider-note{font-size:13px;color:#c4c8d5}

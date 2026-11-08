@@ -11,8 +11,8 @@ function Page() {
   const rows = Route.useLoaderData() as any[]
   return (
     <CrudTable
-      title="Actors" group="Cast & Crew" entity="actors" rows={rows}
-      columns={[{ key: 'file_url', label: 'Actor', kind: 'img' }, { key: 'designation', label: 'Designation' }, { key: 'status', label: 'Status', kind: 'pill' }]}
+      title="Personalities" singular="Personality" group="Media Management" entity="actors" rows={rows}
+      columns={[{ key: 'file_url', label: 'Personality', kind: 'img' }, { key: 'designation', label: 'Designation' }, { key: 'status', label: 'Status', kind: 'pill' }]}
       fields={[
         { key: 'name', label: 'Name', required: true },
         { key: 'designation', label: 'Designation' },
@@ -20,7 +20,11 @@ function Page() {
         { key: 'dob', label: 'Date of Birth', type: 'date' },
         { key: 'place_of_birth', label: 'Place of Birth' },
         { key: 'status', label: 'Status', type: 'toggle' },
-        { key: 'bio', label: 'Bio', type: 'textarea' },
+        { key: 'bio', label: 'Biography', type: 'textarea' },
+        { key: 'social_facebook', label: 'Facebook URL', placeholder: 'https://www.facebook.com/…' },
+        { key: 'social_instagram', label: 'Instagram URL', placeholder: 'https://www.instagram.com/…' },
+        { key: 'social_x', label: 'X URL', placeholder: 'https://x.com/…' },
+        { key: 'social_website', label: 'Website URL', placeholder: 'https://…' },
       ]}
     />
   )
