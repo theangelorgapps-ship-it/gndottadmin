@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { adminListVideos, adminUpsertVideo, adminDeleteVideo, adminGetVideo } from '../../lib/admin'
 import { useConfirm } from '../../lib/confirm'
 import { useToast } from '../../lib/toast'
@@ -17,37 +17,83 @@ type VForm = {
   enable_subtitle?: number; subtitle_file?: string; subtitle_language?: string
   meta_title?: string; meta_keywords?: string; meta_description?: string
 }
+
 const EMPTY: VForm = { name: '', description: '', duration: '', release_date: '', status: 1, access: 'free' }
 
-function BunnyUploadButton({ videoId, title, onDone }: { videoId?: number; title: string; onDone: (vid: string) => void }) {
-  const [busy, setBusy] = useState(false)
-  const notify = useToast()
+function Field({ id, label, children, span = false }: { id: string; label: string; children: ReactNode; span?: boolean }) {
   return (
-    <label className="btn btn-dark btn-xs" style={{ cursor: 'pointer' }}>
-      {busy ? 'Uploading to Bunny…' : 'Upload to Bunny Stream'}
+    <div className="field min-w-0" style={span ? { gridColumn: '1 / -1' } : undefined}>
+      <label htmlFor={id}>{label}</label>
+      {children}
+    </div>
+  )
+}
+
+function BunnyUploadButton({
+  videoId,
+  title,
+  onDone,
+  parentBusy,
+  onBusyChange,
+}: {
+  videoId?: number
+  title: string
+  onDone: (videoId: string) => void
+  parentBusy: boolean
+  onBusyChange: (busy: boolean) => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const notify = useToast()
+
+  return (
+    <span className="inline-flex max-w-full flex-col items-start gap-1">
+      <button
+        type="button"
+        className="btn btn-dark btn-sm upload-btn"
+        disabled={busy || parentBusy}
+        aria-busy={busy}
+        onClick={() => inputRef.current?.click()}
+      >
+        {busy ? 'Uploading to Bunny…' : 'Upload to Bunny Stream'}
+      </button>
+      {busy && <span className="text-xs text-muted-foreground" role="status">Keep this editor open until the upload finishes.</span>}
       <input
-        type="file" accept="video/*" style={{ display: 'none' }} disabled={busy}
-        onChange={async (e) => {
-          const f = e.target.files?.[0]
-          if (!f) return
+        ref={inputRef}
+        type="file"
+        accept="video/*"
+        hidden
+        disabled={busy || parentBusy}
+        aria-label="Choose video file for Bunny Stream"
+        onChange={async (event) => {
+          const input = event.currentTarget
+          const file = input.files?.[0]
+          if (!file) return
           setBusy(true)
-          const fd = new FormData()
-          fd.append('file', f)
-          fd.append('title', title || f.name)
-          if (videoId) { fd.append('table', 'videos'); fd.append('row_id', String(videoId)) }
-          const res = await fetch('/api/bunny-upload', { method: 'POST', body: fd })
-          const json: any = await res.json().catch(() => null)
-          setBusy(false)
-          if (json?.ok) {
+          onBusyChange(true)
+          try {
+            const form = new FormData()
+            form.append('file', file)
+            form.append('title', title || file.name)
+            if (videoId) {
+              form.append('table', 'videos')
+              form.append('row_id', String(videoId))
+            }
+            const response = await fetch('/api/bunny-upload', { method: 'POST', body: form })
+            const json: any = await response.json().catch(() => null)
+            if (!response.ok || !json?.ok || !json.videoId) throw new Error(json?.error ?? 'The video could not be uploaded.')
             notify({ title: 'Upload complete', description: 'The video was uploaded to Bunny Stream.', variant: 'success' })
             onDone(json.videoId)
-          } else {
-            notify({ title: 'Bunny upload failed', description: json?.error ?? 'The video could not be uploaded.', variant: 'destructive' })
+          } catch (error: any) {
+            notify({ title: 'Bunny upload failed', description: error?.message ?? 'The video could not be uploaded.', variant: 'destructive' })
+          } finally {
+            setBusy(false)
+            onBusyChange(false)
+            input.value = ''
           }
-          e.target.value = ''
         }}
       />
-    </label>
+    </span>
   )
 }
 
@@ -58,9 +104,35 @@ function AdminVideos() {
   const notify = useToast()
   const [editing, setEditing] = useState<VForm | null>(null)
   const [busy, setBusy] = useState(false)
+  const [activeUploads, setActiveUploads] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const dialogTitleId = useId()
+  const dialogHelpId = useId()
+  const editorOpen = editing !== null
+  const isBusy = busy || activeUploads > 0
+
+  const handleUploadBusy = useCallback((uploadBusy: boolean) => {
+    setActiveUploads((current) => Math.max(0, current + (uploadBusy ? 1 : -1)))
+  }, [])
+
+  useEffect(() => {
+    if (!editorOpen) return
+    const dialog = dialogRef.current
+    if (!dialog) return
+    const previousFocus = document.activeElement as HTMLElement | null
+    if (!dialog.open) dialog.showModal()
+    dialog.querySelector<HTMLElement>('[data-initial-focus]')?.focus()
+    return () => {
+      if (dialog.open) dialog.close()
+      setTimeout(() => {
+        if (previousFocus?.isConnected) previousFocus.focus()
+      }, 0)
+    }
+  }, [editorOpen])
 
   async function openEdit(id: number) {
+    setBusy(true)
     setError(null)
     try {
       const row: any = await adminGetVideo({ data: id })
@@ -75,11 +147,28 @@ function AdminVideos() {
       })
     } catch (e: any) {
       notify({ title: 'Could not load record', description: e?.message ?? 'Please try again.', variant: 'destructive' })
+    } finally {
+      setBusy(false)
     }
   }
 
+  function openNew() {
+    setError(null)
+    setEditing({ ...EMPTY })
+  }
+
+  function requestClose() {
+    if (isBusy) return
+    setEditing(null)
+    setError(null)
+  }
+
   async function save() {
-    if (!editing) return
+    if (!editing || isBusy) return
+    if (!editing.name.trim()) {
+      setError('Name is required.')
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -94,6 +183,7 @@ function AdminVideos() {
       setBusy(false)
     }
   }
+
   async function remove(id: number, name: string) {
     const ok = await confirmAction({
       title: `Delete "${name}"?`,
@@ -101,23 +191,27 @@ function AdminVideos() {
       approveLabel: 'Delete',
     })
     if (!ok) return
+    setBusy(true)
     try {
       await adminDeleteVideo({ data: id })
       notify({ title: 'Video deleted', description: name, variant: 'success' })
       router.invalidate()
     } catch (e: any) {
       notify({ title: 'Delete failed', description: e?.message ?? 'Could not delete the video.', variant: 'destructive' })
+    } finally {
+      setBusy(false)
     }
   }
 
-  const set = (patch: Partial<VForm>) => setEditing((cur) => (cur ? { ...cur, ...patch } : cur))
+  const set = (patch: Partial<VForm>) => setEditing((current) => (current ? { ...current, ...patch } : current))
 
   return (
-    <div>
+    <div className="min-w-0">
       <div className="breadcrumb">Dashboard <span className="sep">/</span> <span className="here">Videos</span></div>
       <div className="toolbar">
+        <span className="text-sm text-muted-foreground">Manage videos, streams, subtitles, and publishing details.</span>
         <span className="spacer" />
-        <button className="btn btn-primary" onClick={() => setEditing({ ...EMPTY })}>+ New Video</button>
+        <button type="button" className="btn btn-primary" onClick={openNew} disabled={busy}>+ New Video</button>
       </div>
       <AdminDataTable
         rows={items}
@@ -125,67 +219,116 @@ function AdminVideos() {
           { key: 'name', label: 'Name', kind: 'title' },
           { key: 'duration', label: 'Duration' },
           { key: 'release_date', label: 'Release', kind: 'date' },
-          { key: 'IMDb_rating', label: 'Rating' },
           { key: 'status', label: 'Status', kind: 'pill' },
         ]}
         searchable={['name']}
-        onEdit={(v) => openEdit(v.id)}
-        onDelete={(v) => remove(v.id, v.name)}
+        searchPlaceholder="Search videos…"
+        empty="No videos found."
+        busy={busy}
+        onEdit={(video) => openEdit(video.id)}
+        onDelete={(video) => remove(video.id, video.name)}
       />
       {editing && (
-        <div className="modal-back" onClick={() => setEditing(null)}>
-          <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
-            <h2>{editing.id ? 'Edit' : 'New'} Video</h2>
+        <dialog
+          ref={dialogRef}
+          className="modal modal-wide m-auto max-h-[calc(100dvh-2rem)] w-[min(45rem,calc(100vw-2rem))] max-w-full overflow-y-auto overscroll-contain p-5 sm:p-6 [&::backdrop]:bg-[rgba(2,8,18,0.82)]"
+          aria-modal="true"
+          aria-labelledby={dialogTitleId}
+          aria-describedby={dialogHelpId}
+          aria-busy={isBusy}
+          onCancel={(event) => {
+            event.preventDefault()
+            requestClose()
+          }}
+          onClick={(event) => {
+            if (event.target !== event.currentTarget || isBusy) return
+            const rect = event.currentTarget.getBoundingClientRect()
+            const outside = event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom
+            if (outside) requestClose()
+          }}
+        >
+          <form className="min-w-0" noValidate onSubmit={(event) => { event.preventDefault(); void save() }}>
+            <div className="mb-5">
+              <h2 id={dialogTitleId} className="mb-1">{editing.id ? 'Edit' : 'New'} Video</h2>
+              <p id={dialogHelpId} className="text-sm text-muted-foreground">Fields marked * are required. Your changes are not saved until you select Save.</p>
+            </div>
             <div className="form-grid">
-              <div className="field" style={{ gridColumn: '1 / -1' }}><label>Name</label>
-                <input value={editing.name} onChange={(e) => set({ name: e.target.value })} /></div>
-              <div className="field" style={{ gridColumn: '1 / -1' }}><label>Description</label>
-                <textarea rows={3} value={editing.description} onChange={(e) => set({ description: e.target.value })} /></div>
-              <div className="field"><label>Duration</label>
-                <input value={editing.duration} onChange={(e) => set({ duration: e.target.value })} /></div>
-              <div className="field"><label>Release date</label>
-                <input type="date" value={editing.release_date} onChange={(e) => set({ release_date: e.target.value })} /></div>
-              <div className="field" style={{ gridColumn: '1 / -1' }}>
-                <label>Bunny Stream Video ID</label>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input placeholder="Paste a Bunny video ID, link, or iframe embed" value={editing.bunny_video_url ?? ''} onChange={(e) => set({ bunny_video_url: e.target.value })} style={{ flex: 1 }} />
-                  <BunnyUploadButton videoId={editing.id} title={editing.name} onDone={(vid) => set({ bunny_video_url: vid })} />
-                </div>
-              </div>
-              <div className="field"><label>Trailer URL (YouTube)</label>
-                <input value={editing.trailer_url ?? ''} onChange={(e) => set({ trailer_url: e.target.value })} /></div>
-              <div className="field"><label>External video URL</label>
-                <input value={editing.video_url_input ?? ''} onChange={(e) => set({ video_url_input: e.target.value })} /></div>
-              <div className="field"><label>Access</label>
-                <select value={editing.access ?? 'free'} onChange={(e) => set({ access: e.target.value })}>
+              <Field id="video-name" label="Name *" span>
+                <input id="video-name" data-initial-focus value={editing.name} disabled={busy} aria-required="true" onChange={(event) => set({ name: event.target.value })} />
+              </Field>
+              <Field id="video-description" label="Description" span>
+                <textarea id="video-description" rows={3} value={editing.description} disabled={busy} onChange={(event) => set({ description: event.target.value })} />
+              </Field>
+              <Field id="video-duration" label="Duration">
+                <input id="video-duration" value={editing.duration} disabled={busy} onChange={(event) => set({ duration: event.target.value })} />
+              </Field>
+              <Field id="video-release-date" label="Release date">
+                <input id="video-release-date" type="date" value={editing.release_date} disabled={busy} onChange={(event) => set({ release_date: event.target.value })} />
+              </Field>
+              <Field id="video-status" label="Status">
+                <select id="video-status" value={editing.status} disabled={busy} onChange={(event) => set({ status: Number(event.target.value) })}>
+                  <option value={1}>Active</option>
+                  <option value={0}>Inactive</option>
+                </select>
+              </Field>
+              <Field id="video-access" label="Access">
+                <select id="video-access" value={editing.access ?? 'free'} disabled={busy} onChange={(event) => set({ access: event.target.value })}>
                   <option value="free">Free</option>
                   <option value="paid">Paid</option>
-                </select></div>
-              <div className="field"><label>Price ($)</label>
-                <input type="number" step="0.01" value={editing.price ?? ''} onChange={(e) => set({ price: e.target.value ? Number(e.target.value) : null })} /></div>
-              <div className="field"><label>Subtitles</label>
-                <select value={editing.enable_subtitle ?? 0} onChange={(e) => set({ enable_subtitle: Number(e.target.value) })}>
+                </select>
+              </Field>
+              <Field id="video-price" label="Price ($)">
+                <input id="video-price" type="number" step="0.01" value={editing.price ?? ''} disabled={busy} onChange={(event) => set({ price: event.target.value ? Number(event.target.value) : null })} />
+              </Field>
+              <Field id="video-bunny" label="Bunny Stream Video ID" span>
+                <div className="img-field">
+                  <input id="video-bunny" placeholder="Paste a Bunny video ID, link, or iframe embed" value={editing.bunny_video_url ?? ''} disabled={busy} onChange={(event) => set({ bunny_video_url: event.target.value })} />
+                  <BunnyUploadButton videoId={editing.id} title={editing.name} parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(videoId) => set({ bunny_video_url: videoId })} />
+                </div>
+              </Field>
+              <Field id="video-trailer" label="Trailer URL (YouTube)">
+                <input id="video-trailer" value={editing.trailer_url ?? ''} disabled={busy} onChange={(event) => set({ trailer_url: event.target.value })} />
+              </Field>
+              <Field id="video-external" label="External video URL">
+                <input id="video-external" value={editing.video_url_input ?? ''} disabled={busy} onChange={(event) => set({ video_url_input: event.target.value })} />
+              </Field>
+              <Field id="video-poster" label="Poster URL">
+                <input id="video-poster" value={editing.poster_url ?? ''} disabled={busy} onChange={(event) => set({ poster_url: event.target.value })} />
+              </Field>
+              <Field id="video-thumbnail" label="Thumbnail URL">
+                <input id="video-thumbnail" value={editing.thumbnail_url ?? ''} disabled={busy} onChange={(event) => set({ thumbnail_url: event.target.value })} />
+              </Field>
+              <Field id="video-subtitles" label="Subtitles">
+                <select id="video-subtitles" value={editing.enable_subtitle ?? 0} disabled={busy} onChange={(event) => set({ enable_subtitle: Number(event.target.value) })}>
                   <option value={0}>Off</option>
                   <option value={1}>On</option>
-                </select></div>
-              <div className="field"><label>Subtitle language</label>
-                <input value={editing.subtitle_language ?? ''} onChange={(e) => set({ subtitle_language: e.target.value })} /></div>
-              <div className="field" style={{ gridColumn: '1 / -1' }}><label>Subtitle file</label>
-                <input value={editing.subtitle_file ?? ''} onChange={(e) => set({ subtitle_file: e.target.value })} /></div>
-              <div className="field" style={{ gridColumn: '1 / -1' }}><label>Meta title (SEO)</label>
-                <input value={editing.meta_title ?? ''} onChange={(e) => set({ meta_title: e.target.value })} /></div>
-              <div className="field" style={{ gridColumn: '1 / -1' }}><label>Meta keywords (SEO)</label>
-                <input value={editing.meta_keywords ?? ''} onChange={(e) => set({ meta_keywords: e.target.value })} /></div>
-              <div className="field" style={{ gridColumn: '1 / -1' }}><label>Meta description (SEO)</label>
-                <textarea rows={2} value={editing.meta_description ?? ''} onChange={(e) => set({ meta_description: e.target.value })} /></div>
+                </select>
+              </Field>
+              <Field id="video-subtitle-language" label="Subtitle language">
+                <input id="video-subtitle-language" value={editing.subtitle_language ?? ''} disabled={busy} onChange={(event) => set({ subtitle_language: event.target.value })} />
+              </Field>
+              <Field id="video-subtitle-file" label="Subtitle file" span>
+                <input id="video-subtitle-file" value={editing.subtitle_file ?? ''} disabled={busy} onChange={(event) => set({ subtitle_file: event.target.value })} />
+              </Field>
+              <Field id="video-meta-title" label="Meta title (SEO)" span>
+                <input id="video-meta-title" value={editing.meta_title ?? ''} disabled={busy} onChange={(event) => set({ meta_title: event.target.value })} />
+              </Field>
+              <Field id="video-meta-keywords" label="Meta keywords (SEO)" span>
+                <input id="video-meta-keywords" value={editing.meta_keywords ?? ''} disabled={busy} onChange={(event) => set({ meta_keywords: event.target.value })} />
+              </Field>
+              <Field id="video-meta-description" label="Meta description (SEO)" span>
+                <textarea id="video-meta-description" rows={2} value={editing.meta_description ?? ''} disabled={busy} onChange={(event) => set({ meta_description: event.target.value })} />
+              </Field>
             </div>
-            {error && <div className="error">{error}</div>}
-            <div className="modal-actions">
-              <button className="btn btn-dark" onClick={() => setEditing(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
+            {error && <div className="error mt-3" role="alert">{error}</div>}
+            <div className="modal-actions border-t border-border pt-4">
+              <button type="button" className="btn btn-dark" onClick={requestClose} disabled={isBusy}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={isBusy} aria-disabled={isBusy}>
+                {busy ? 'Saving…' : activeUploads > 0 ? 'Waiting for upload…' : 'Save'}
+              </button>
             </div>
-          </div>
-        </div>
+          </form>
+        </dialog>
       )}
     </div>
   )

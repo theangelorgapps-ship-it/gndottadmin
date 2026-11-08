@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { adminGetRow, adminUpsertRow, adminDeleteRow } from '../lib/admin'
 import { useConfirm } from '../lib/confirm'
@@ -40,6 +40,27 @@ export function CrudTable({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState<string | null>(null)
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const dialogTitleId = useId()
+  const dialogHelpId = useId()
+  const formId = useId()
+  const isBusy = busy || uploading !== null
+
+  useEffect(() => {
+    if (!open) return
+    const dialog = dialogRef.current
+    if (!dialog) return
+    const previousFocus = document.activeElement as HTMLElement | null
+    if (!dialog.open) dialog.showModal()
+    dialog.querySelector<HTMLElement>('[data-initial-focus]')?.focus()
+    return () => {
+      if (dialog.open) dialog.close()
+      // Wait for busy actions to re-enable after a successful save before returning focus.
+      setTimeout(() => {
+        if (previousFocus?.isConnected) previousFocus.focus()
+      }, 0)
+    }
+  }, [open])
 
   async function uploadFile(fieldKey: string, file?: File | null) {
     if (!file) return
@@ -49,14 +70,15 @@ export function CrudTable({
       const form = new FormData()
       form.append('file', file)
       const res = await fetch('/api/upload', { method: 'POST', body: form })
-      const data = await res.json() as { error?: string; url: string }
-      if (!res.ok) throw new Error(data?.error ?? 'Upload failed')
-      setEditing((cur: any) => (cur ? { ...cur, [fieldKey]: data.url } : cur))
+      const data = await res.json().catch(() => null) as { url?: string; error?: string } | null
+      if (!res.ok || !data?.url) throw new Error(data?.error ?? 'Upload failed')
+      setEditing((current: any) => current ? { ...current, [fieldKey]: data.url } : current)
+      notify({ title: 'Upload complete', description: file.name, variant: 'success' })
     } catch (e: any) {
       setError(e?.message ?? 'Upload failed.')
       notify({ title: 'Upload failed', description: e?.message ?? 'The file could not be uploaded.', variant: 'destructive' })
     } finally {
-      setUploading(null)
+      setUploading((current) => current === fieldKey ? null : current)
     }
   }
 
@@ -69,6 +91,7 @@ export function CrudTable({
       setOpen(true)
     } catch (e: any) {
       setError(e?.message ?? 'Failed to load record.')
+      notify({ title: 'Could not load record', description: e?.message ?? 'Please try again.', variant: 'destructive' })
     } finally {
       setBusy(false)
     }
@@ -76,23 +99,31 @@ export function CrudTable({
 
   function openAdd() {
     const blank: Record<string, any> = {}
-    for (const f of fields) blank[f.key] = f.type === 'toggle' ? 1 : ''
+    for (const field of fields) blank[field.key] = field.type === 'toggle' ? 1 : ''
+    setError(null)
     setEditing(blank)
     setOpen(true)
   }
 
+  function requestClose() {
+    if (isBusy) return
+    setOpen(false)
+    setEditing(null)
+    setError(null)
+  }
+
   async function save() {
-    if (!editing) return
+    if (!editing || isBusy) return
     setBusy(true)
     setError(null)
     try {
       const values: Record<string, any> = {}
-      for (const f of fields) {
-        let v = editing[f.key]
-        if (f.required && (v == null || String(v).trim() === '')) throw new Error(`${f.label} is required.`)
-        if (f.type === 'number') v = v === '' || v == null ? null : Number(v)
-        if (f.type === 'toggle') v = v ? 1 : 0
-        values[f.key] = v
+      for (const field of fields) {
+        let value = editing[field.key]
+        if (field.required && (value == null || String(value).trim() === '')) throw new Error(`${field.label} is required.`)
+        if (field.type === 'number') value = value === '' || value == null ? null : Number(value)
+        if (field.type === 'toggle') value = value ? 1 : 0
+        values[field.key] = value
       }
       await adminUpsertRow({ data: { entity, id: editing.id, values } })
       setOpen(false)
@@ -127,76 +158,178 @@ export function CrudTable({
   }
 
   return (
-    <div>
+    <div className="min-w-0">
       <div className="breadcrumb">{group} <span className="sep">/</span> <span className="here">{title}</span></div>
       <div className="toolbar">
-        <span style={{ fontSize: 13, color: 'var(--muted-2)' }}>{rows.length} records</span>
+        <span className="text-sm text-muted-foreground">{rows.length} {rows.length === 1 ? 'record' : 'records'}</span>
         <span className="spacer" />
         {!readonly && fields.length > 0 && (
-          <button className="btn btn-primary btn-sm" onClick={openAdd} disabled={busy}>
+          <button type="button" className="btn btn-primary btn-sm" onClick={openAdd} disabled={busy}>
             + Add {itemLabel}
           </button>
         )}
       </div>
-      {error && !open && <div className="error" style={{ marginBottom: 12 }}>{error}</div>}
+      {error && !open && <div className="error mb-3" role="alert">{error}</div>}
       <AdminDataTable
         rows={rows}
         columns={columns}
         busy={busy}
         searchable={['name', 'title', 'label']}
+        searchPlaceholder={`Search ${title.toLowerCase()}…`}
         empty={empty ?? `No ${title.toLowerCase()} records.`}
-        onEdit={!readonly && fields.length > 0 ? (r) => openEdit(r.id) : undefined}
-        onDelete={!readonly ? (r) => remove(r.id) : undefined}
+        onEdit={!readonly && fields.length > 0 ? (row) => openEdit(row.id) : undefined}
+        onDelete={!readonly ? (row) => remove(row.id) : undefined}
       />
 
       {open && editing && (
-        <div className="modal-backdrop" onClick={() => !busy && setOpen(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <h2>{editing.id ? 'Edit' : 'Add'} {itemLabel}</h2>
+        <dialog
+          ref={dialogRef}
+          className="modal modal-wide m-auto max-h-[calc(100dvh-2rem)] w-[min(45rem,calc(100vw-2rem))] max-w-full overflow-y-auto overscroll-contain p-5 sm:p-6 [&::backdrop]:bg-[rgba(2,8,18,0.82)]"
+          aria-modal="true"
+          aria-labelledby={dialogTitleId}
+          aria-describedby={dialogHelpId}
+          aria-busy={isBusy}
+          onCancel={(event) => {
+            // Native dialog cancel covers Escape; never dismiss an active save/upload.
+            event.preventDefault()
+            requestClose()
+          }}
+          onClick={(event) => {
+            if (event.target !== event.currentTarget || isBusy) return
+            const rect = event.currentTarget.getBoundingClientRect()
+            const outside = event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom
+            if (outside) requestClose()
+          }}
+        >
+          <form
+            className="min-w-0"
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault()
+              void save()
+            }}
+          >
+            <div className="mb-5">
+              <h2 id={dialogTitleId} className="mb-1">{editing.id ? 'Edit' : 'Add'} {itemLabel}</h2>
+              <p id={dialogHelpId} className="text-sm text-muted-foreground">Fields marked * are required. Your changes are not saved until you select Save.</p>
+            </div>
             <div className="modal-form">
-              {fields.map((f) => (
-                <label key={f.key} className={`mfield ${f.type === 'textarea' ? 'span2' : ''}`}>
-                  <span>{f.label}{f.required ? ' *' : ''}</span>
-                  {f.type === 'textarea' ? (
-                    <textarea rows={3} value={editing[f.key] ?? ''} onChange={(e) => setEditing({ ...editing, [f.key]: e.target.value })} />
-                  ) : f.type === 'select' ? (
-                    <select value={editing[f.key] ?? ''} disabled={!!f.dependsOn && !editing[f.dependsOn]} onChange={(e) => setEditing(changeField(fields, editing, f.key, e.target.value))}>
-                      <option value="">{f.dependsOn ? 'No group selected' : '—'}</option>
-                      {fieldOptions(f, editing).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                    </select>
-                  ) : f.type === 'toggle' ? (
-                    <select value={editing[f.key] ? 1 : 0} onChange={(e) => setEditing({ ...editing, [f.key]: Number(e.target.value) })}>
-                      <option value={1}>Active</option>
-                      <option value={0}>Inactive</option>
-                    </select>
-                  ) : f.type === 'image' ? (
-                    <span className="img-field">
-                      <input type="text" placeholder="image filename or URL" value={editing[f.key] ?? ''} onChange={(e) => setEditing({ ...editing, [f.key]: e.target.value })} />
-                      <label className="btn btn-dark btn-sm upload-btn">
-                        {uploading === f.key ? 'Uploading…' : 'Upload'}
-                        <input type="file" accept="image/*" hidden disabled={busy || uploading === f.key} onChange={(e) => uploadFile(f.key, e.target.files?.[0])} />
-                      </label>
-                      {editing[f.key] ? <img src={img(editing[f.key])} alt="" className="img-preview" /> : null}
-                    </span>
-                  ) : (
-                    <input
-                      type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
-                      step={f.type === 'number' ? 'any' : undefined}
-                      placeholder={f.placeholder}
-                      value={editing[f.key] ?? ''}
-                      onChange={(e) => setEditing({ ...editing, [f.key]: e.target.value })}
-                    />
-                  )}
-                </label>
-              ))}
+              {fields.map((field, index) => {
+                const inputId = `${formId}-${field.key}`
+                const dependentDisabled = Boolean(field.dependsOn && !editing[field.dependsOn])
+                const parentLabel = fields.find((candidate) => candidate.key === field.dependsOn)?.label ?? 'parent'
+                const options = fieldOptions(field, editing)
+                return (
+                  <div key={field.key} className={`mfield ${field.type === 'textarea' || field.type === 'image' ? 'span2' : ''}`}>
+                    <label htmlFor={inputId}>
+                      {field.label}{field.required ? <span aria-hidden="true"> *</span> : null}
+                    </label>
+                    {field.type === 'textarea' ? (
+                      <textarea
+                        id={inputId}
+                        rows={3}
+                        value={editing[field.key] ?? ''}
+                        disabled={busy}
+                        aria-required={field.required || undefined}
+                        data-initial-focus={index === 0 ? true : undefined}
+                        onChange={(event) => setEditing({ ...editing, [field.key]: event.target.value })}
+                      />
+                    ) : field.type === 'select' ? (
+                      <select
+                        id={inputId}
+                        value={editing[field.key] ?? ''}
+                        disabled={busy || dependentDisabled}
+                        aria-required={field.required || undefined}
+                        data-initial-focus={index === 0 ? true : undefined}
+                        onChange={(event) => setEditing(changeField(fields, editing, field.key, event.target.value))}
+                      >
+                        <option value="">{dependentDisabled ? `Select ${parentLabel} first` : '— Select —'}</option>
+                        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </select>
+                    ) : field.type === 'toggle' ? (
+                      <select
+                        id={inputId}
+                        value={editing[field.key] ? 1 : 0}
+                        disabled={busy}
+                        data-initial-focus={index === 0 ? true : undefined}
+                        onChange={(event) => setEditing({ ...editing, [field.key]: Number(event.target.value) })}
+                      >
+                        <option value={1}>Active</option>
+                        <option value={0}>Inactive</option>
+                      </select>
+                    ) : field.type === 'image' ? (
+                      <span className="img-field-col">
+                        <span className="img-field">
+                          <input
+                            id={inputId}
+                            type="text"
+                            placeholder="Image filename or URL"
+                            value={editing[field.key] ?? ''}
+                            disabled={busy}
+                            aria-required={field.required || undefined}
+                            data-initial-focus={index === 0 ? true : undefined}
+                            onChange={(event) => setEditing({ ...editing, [field.key]: event.target.value })}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-dark btn-sm upload-btn"
+                            disabled={isBusy}
+                            aria-busy={uploading === field.key}
+                            onClick={() => document.getElementById(`${inputId}-file`)?.click()}
+                          >
+                            {uploading === field.key ? 'Uploading…' : 'Upload'}
+                          </button>
+                          <input
+                            id={`${inputId}-file`}
+                            type="file"
+                            accept="image/*"
+                            hidden
+                            disabled={isBusy}
+                            aria-label={`Upload ${field.label}`}
+                            onChange={async (event) => {
+                              const input = event.currentTarget
+                              const file = input.files?.[0]
+                              try {
+                                await uploadFile(field.key, file)
+                              } finally {
+                                input.value = ''
+                              }
+                            }}
+                          />
+                        </span>
+                        {editing[field.key] ? <img src={img(editing[field.key])} alt={`${field.label} preview`} className="img-preview-lg" /> : null}
+                      </span>
+                    ) : (
+                      <input
+                        id={inputId}
+                        type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
+                        step={field.type === 'number' ? 'any' : undefined}
+                        placeholder={field.placeholder}
+                        value={editing[field.key] ?? ''}
+                        disabled={busy}
+                        aria-required={field.required || undefined}
+                        data-initial-focus={index === 0 ? true : undefined}
+                        onChange={(event) => setEditing({ ...editing, [field.key]: event.target.value })}
+                      />
+                    )}
+                    {field.dependsOn && (
+                      <small className="text-xs font-normal text-muted-foreground">
+                        {dependentDisabled ? `Choose ${parentLabel} to see matching options.` : `${options.length} matching ${options.length === 1 ? 'option' : 'options'}.`}
+                      </small>
+                    )}
+                  </div>
+                )
+              })}
             </div>
-            {error && <div className="error" style={{ marginTop: 10 }}>{error}</div>}
-            <div className="modal-actions">
-              <button className="btn btn-dark" onClick={() => setOpen(false)} disabled={busy}>Cancel</button>
-              <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
+            {error && <div className="error mt-3" role="alert">{error}</div>}
+            <div className="modal-actions border-t border-border pt-4">
+              <button type="button" className="btn btn-dark" onClick={requestClose} disabled={isBusy}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={isBusy} aria-disabled={isBusy}>
+                {busy ? 'Saving…' : uploading ? 'Waiting for upload…' : 'Save'}
+              </button>
             </div>
-          </div>
-        </div>
+          </form>
+        </dialog>
       )}
     </div>
   )

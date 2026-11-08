@@ -10,3 +10,9 @@ d1-local.sqlite3
 .dev.vars*
 .playwright-cli/
 output/
+.unlazy/
+.claude/settings.local.json
+.impeccable/live/
+.tmp/
+output/playwright/
+.dev.vars

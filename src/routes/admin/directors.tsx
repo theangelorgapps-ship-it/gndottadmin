@@ -11,7 +11,7 @@ function Page() {
   const rows = Route.useLoaderData() as any[]
   return (
     <CrudTable
-      title="Directors" group="Cast & Crew" entity="directors" rows={rows}
+      title="Directors" group="Content" entity="directors" rows={rows}
       columns={[{ key: 'file_url', label: 'Director', kind: 'img' }, { key: 'designation', label: 'Designation' }, { key: 'status', label: 'Status', kind: 'pill' }]}
       fields={[
         { key: 'name', label: 'Name', required: true },

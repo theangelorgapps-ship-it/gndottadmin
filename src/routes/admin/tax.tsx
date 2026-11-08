@@ -9,13 +9,29 @@ export const Route = createFileRoute('/admin/tax')({
 
 function Page() {
   const rows = Route.useLoaderData() as any[]
+
   return (
     <CrudTable
-      title="Tax" group="System Setting" entity="tax" rows={rows}
-      columns={[{ key: 'title', label: 'Title' }, { key: 'type', label: 'Type' }, { key: 'value', label: 'Value' }, { key: 'status', label: 'Status', kind: 'pill' }]}
+      title="Tax"
+      group="System Setting"
+      entity="tax"
+      rows={rows}
+      singular="tax rate"
+      empty="No tax rates found. Add a rate to apply tax to purchases."
+      columns={[
+        { key: 'title', label: 'Title', kind: 'title' },
+        { key: 'type', label: 'Type' },
+        { key: 'value', label: 'Value' },
+        { key: 'status', label: 'Status', kind: 'pill' },
+      ]}
       fields={[
         { key: 'title', label: 'Title', required: true },
-        { key: 'type', label: 'Type', type: 'select', options: [{ value: 'percentage', label: 'Percentage' }, { value: 'fixed', label: 'Fixed' }] },
+        {
+          key: 'type', label: 'Type', type: 'select', options: [
+            { value: 'percentage', label: 'Percentage' },
+            { value: 'fixed', label: 'Fixed' },
+          ],
+        },
         { key: 'value', label: 'Value', type: 'number' },
         { key: 'status', label: 'Status', type: 'toggle' },
       ]}

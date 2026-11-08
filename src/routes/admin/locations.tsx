@@ -47,7 +47,7 @@ function LocationsPage() {
   }
 
   return <div className="locations-admin">
-    <div className="breadcrumb">Media Management <span className="sep">/</span><span className="here">Locations</span></div>
+    <div className="breadcrumb">Content <span className="sep">/</span><span className="here">Locations</span></div>
     <div className="toolbar"><p>Locations appear on the titles they are assigned to.</p><span className="spacer" />
       {!readonly && <button type="button" className="btn btn-primary" disabled={busy} onClick={() => setEditing({ name: '', status: 1, assignments: [] })}>+ New Location</button>}
     </div>

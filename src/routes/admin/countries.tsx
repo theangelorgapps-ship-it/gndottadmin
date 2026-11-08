@@ -9,11 +9,17 @@ export const Route = createFileRoute('/admin/countries')({
 
 function Page() {
   const rows = Route.useLoaderData() as any[]
+
   return (
     <CrudTable
-      title="Countries" group="System Setting" entity="countries" rows={rows}
+      title="Countries"
+      group="System Setting"
+      entity="countries"
+      rows={rows}
+      singular="country"
+      empty="No countries found. Add a country to support regional and dialing settings."
       columns={[
-        { key: 'name', label: 'Name' },
+        { key: 'name', label: 'Name', kind: 'title' },
         { key: 'code', label: 'Code' },
         { key: 'dial_code', label: 'Dial Code' },
         { key: 'currency_code', label: 'Currency' },
@@ -21,8 +27,8 @@ function Page() {
       ]}
       fields={[
         { key: 'name', label: 'Name', required: true },
-        { key: 'code', label: 'Country Code (e.g. US)' },
-        { key: 'dial_code', label: 'Dial Code (e.g. +1)' },
+        { key: 'code', label: 'Country Code (for example, US)' },
+        { key: 'dial_code', label: 'Dial Code (for example, +1)' },
         { key: 'currency_name', label: 'Currency Name' },
         { key: 'symbol', label: 'Currency Symbol' },
         { key: 'currency_code', label: 'Currency Code' },

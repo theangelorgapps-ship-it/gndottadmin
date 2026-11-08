@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useRef,
   useState,
   type ReactNode,
@@ -30,16 +31,26 @@ const MAX_TOASTS = 4
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
   const nextId = useRef(1)
+  const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>())
 
   const dismiss = useCallback((id: number) => {
-    setToasts((ts) => ts.filter((t) => t.id !== id))
+    const timer = timers.current.get(id)
+    if (timer) clearTimeout(timer)
+    timers.current.delete(id)
+    setToasts((current) => current.filter((toast) => toast.id !== id))
+  }, [])
+
+  useEffect(() => () => {
+    for (const timer of timers.current.values()) clearTimeout(timer)
+    timers.current.clear()
   }, [])
 
   const notify = useCallback(
     (input: ToastInput) => {
       const id = nextId.current++
-      setToasts((ts) => [...ts.slice(-(MAX_TOASTS - 1)), { id, ...input }])
-      setTimeout(() => dismiss(id), TOAST_TTL_MS)
+      setToasts((current) => [...current.slice(-(MAX_TOASTS - 1)), { id, ...input }])
+      const timer = setTimeout(() => dismiss(id), TOAST_TTL_MS)
+      timers.current.set(id, timer)
     },
     [dismiss],
   )
@@ -47,16 +58,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastCtx.Provider value={notify}>
       {children}
-      <div className="toast-host">
+      <div className="toast-host" aria-label="Notifications" aria-relevant="additions text">
         <AnimatePresence mode="popLayout">
-          {toasts.map((t) => (
+          {toasts.map((toast) => (
             <HaloPolishedNotification
-              key={t.id}
-              title={t.title}
-              description={t.description}
-              rimVariant={t.variant ?? 'default'}
-              politeness={t.variant === 'destructive' ? 'alert' : 'status'}
-              onDismiss={() => dismiss(t.id)}
+              key={toast.id}
+              title={toast.title}
+              description={toast.description}
+              rimVariant={toast.variant ?? 'default'}
+              politeness={toast.variant === 'destructive' ? 'alert' : 'status'}
+              onDismiss={() => dismiss(toast.id)}
             />
           ))}
         </AnimatePresence>

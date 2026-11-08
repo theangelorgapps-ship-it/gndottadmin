@@ -1,57 +1,64 @@
-"use client";
+"use client"
 
-import { cn } from "@/lib/utils";
-import { Link } from "@tanstack/react-router";
-import React, { useState, createContext, useContext } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { Menu, X } from "lucide-react";
+import { cn } from "@/lib/utils"
+import { Link, useRouterState } from "@tanstack/react-router"
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react"
+import { Menu, PanelLeftClose, PanelLeftOpen, X } from "lucide-react"
 
 interface Links {
-  label: string;
-  href: string;
-  icon: React.JSX.Element | React.ReactNode;
+  label: string
+  href: string
+  icon: React.ReactNode
 }
 
 interface SidebarContextProps {
-  open: boolean;
-  setOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  animate: boolean;
+  open: boolean
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>
+  animate: boolean
+  mobileOpen: boolean
+  setMobileOpen: React.Dispatch<React.SetStateAction<boolean>>
 }
 
-const SidebarContext = createContext<SidebarContextProps | undefined>(
-  undefined
-);
+const SidebarContext = createContext<SidebarContextProps | undefined>(undefined)
 
 export const useSidebar = () => {
-  const context = useContext(SidebarContext);
+  const context = useContext(SidebarContext)
   if (!context) {
-    throw new Error("useSidebar must be used within a SidebarProvider");
+    throw new Error("useSidebar must be used within a SidebarProvider")
   }
-  return context;
-};
+  return context
+}
 
 export const SidebarProvider = ({
   children,
   open: openProp,
   setOpen: setOpenProp,
-  animate = true,
+  animate = false,
 }: {
-  children: React.ReactNode;
-  open?: boolean;
-  setOpen?: React.Dispatch<React.SetStateAction<boolean>>;
-  animate?: boolean;
+  children: React.ReactNode
+  open?: boolean
+  setOpen?: React.Dispatch<React.SetStateAction<boolean>>
+  animate?: boolean
 }) => {
-  const [openState, setOpenState] = useState(false);
-
-  const open = openProp !== undefined ? openProp : openState;
-  const setOpen = setOpenProp !== undefined ? setOpenProp : setOpenState;
+  const [openState, setOpenState] = useState(true)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const open = openProp !== undefined ? openProp : openState
+  const setOpen = setOpenProp !== undefined ? setOpenProp : setOpenState
 
   return (
-    <SidebarContext.Provider value={{ open, setOpen, animate }}>
+    <SidebarContext.Provider
+      value={{ open, setOpen, animate, mobileOpen, setMobileOpen }}
+    >
       {children}
     </SidebarContext.Provider>
-  );
-};
+  )
+}
 
 export const Sidebar = ({
   children,
@@ -59,130 +66,188 @@ export const Sidebar = ({
   setOpen,
   animate,
 }: {
-  children: React.ReactNode;
-  open?: boolean;
-  setOpen?: React.Dispatch<React.SetStateAction<boolean>>;
-  animate?: boolean;
-}) => {
-  return (
-    <SidebarProvider open={open} setOpen={setOpen} animate={animate}>
-      {children}
-    </SidebarProvider>
-  );
-};
+  children: React.ReactNode
+  open?: boolean
+  setOpen?: React.Dispatch<React.SetStateAction<boolean>>
+  animate?: boolean
+}) => (
+  <SidebarProvider open={open} setOpen={setOpen} animate={animate}>
+    {children}
+  </SidebarProvider>
+)
 
-export const SidebarBody = (props: React.ComponentProps<typeof motion.div>) => {
-  return (
-    <>
-      <DesktopSidebar {...props} />
-      <MobileSidebar {...(props as React.ComponentProps<"div">)} />
-    </>
-  );
-};
+export const SidebarBody = (props: React.ComponentProps<"div">) => (
+  <>
+    <DesktopSidebar {...props} />
+    <MobileSidebar {...props} />
+  </>
+)
 
 export const DesktopSidebar = ({
   className,
   children,
   ...props
-}: React.ComponentProps<typeof motion.div>) => {
-  const { open, setOpen, animate } = useSidebar();
+}: React.ComponentProps<"div">) => {
+  const { open, setOpen } = useSidebar()
   return (
-    <motion.div
-      className={cn(
-        "h-full px-4 py-4 hidden md:flex md:flex-col bg-neutral-100 dark:bg-neutral-800 w-[300px] flex-shrink-0",
-        className
-      )}
-      animate={{
-        width: animate ? (open ? "300px" : "60px") : "300px",
-      }}
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
+    <aside
+      className={cn("sidebar-desktop", className)}
+      data-expanded={open ? "true" : "false"}
+      aria-label="Admin navigation"
       {...props}
     >
-      {children}
-    </motion.div>
-  );
-};
+      <div className="sidebar-desktop-content" id="admin-sidebar-content">
+        {children}
+      </div>
+      <button
+        type="button"
+        className="sidebar-collapse"
+        aria-controls="admin-sidebar-content"
+        aria-expanded={open}
+        aria-label={open ? "Collapse navigation" : "Expand navigation"}
+        onClick={() => setOpen((value) => !value)}
+      >
+        {open ? <PanelLeftClose aria-hidden="true" /> : <PanelLeftOpen aria-hidden="true" />}
+        <span className="sidebar-collapse-label">
+          {open ? "Collapse navigation" : "Expand navigation"}
+        </span>
+      </button>
+    </aside>
+  )
+}
 
 export const MobileSidebar = ({
   className,
   children,
+  onClickCapture,
   ...props
 }: React.ComponentProps<"div">) => {
-  const { open, setOpen } = useSidebar();
+  const { mobileOpen, setMobileOpen } = useSidebar()
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    if (mobileOpen && !dialog.open) dialog.showModal()
+    if (!mobileOpen && dialog.open) dialog.close()
+  }, [mobileOpen])
+
+  useEffect(() => {
+    if (!mobileOpen) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [mobileOpen])
+
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 48rem)")
+    const closeOnDesktop = (event: MediaQueryListEvent) => {
+      if (event.matches) setMobileOpen(false)
+    }
+    desktop.addEventListener("change", closeOnDesktop)
+    return () => desktop.removeEventListener("change", closeOnDesktop)
+  }, [setMobileOpen])
+
+  const close = () => setMobileOpen(false)
+
   return (
-    <>
-      <div
-        className={cn(
-          "h-10 px-4 py-4 flex flex-row md:hidden items-center justify-between bg-neutral-100 dark:bg-neutral-800 w-full"
-        )}
-        {...props}
-      >
-        <div className="flex justify-end z-20 w-full">
-          <Menu
-            className="text-neutral-800 dark:text-neutral-200 cursor-pointer"
-            onClick={() => setOpen(!open)}
-          />
-        </div>
-        <AnimatePresence>
-          {open && (
-            <motion.div
-              initial={{ x: "-100%", opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: "-100%", opacity: 0 }}
-              transition={{
-                duration: 0.3,
-                ease: "easeInOut",
-              }}
-              className={cn(
-                "fixed h-full w-full inset-0 bg-white dark:bg-neutral-900 p-10 z-[100] flex flex-col justify-between",
-                className
-              )}
-            >
-              <div
-                className="absolute right-10 top-10 z-50 text-neutral-800 dark:text-neutral-200 cursor-pointer"
-                onClick={() => setOpen(!open)}
-              >
-                <X />
-              </div>
-              {children}
-            </motion.div>
-          )}
-        </AnimatePresence>
+    <div className="sidebar-mobile">
+      <div className="sidebar-mobile-bar">
+        <Link to={"/admin" as any} className="sidebar-mobile-brand" aria-label="GoodNews Halobox admin dashboard">
+          <span className="brand-mark" aria-hidden="true">GH</span>
+          <span>GoodNews Halobox</span>
+        </Link>
+        <button
+          ref={menuButtonRef}
+          type="button"
+          className="sidebar-menu-button"
+          aria-label="Open navigation"
+          aria-expanded={mobileOpen}
+          aria-haspopup="dialog"
+          aria-controls="admin-mobile-navigation"
+          onClick={() => setMobileOpen(true)}
+        >
+          <Menu aria-hidden="true" />
+        </button>
       </div>
-    </>
-  );
-};
+      <dialog
+        ref={dialogRef}
+        id="admin-mobile-navigation"
+        className="sidebar-dialog"
+        aria-labelledby="admin-mobile-navigation-title"
+        onCancel={(event) => {
+          // Native dialog cancellation is the Escape-key interaction.
+          event.preventDefault()
+          close()
+        }}
+        onClose={() => menuButtonRef.current?.focus()}
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) close()
+        }}
+      >
+        <div
+          className={cn("sidebar-dialog-panel", className)}
+          {...props}
+          onClickCapture={(event) => {
+            if (event.target instanceof Element && event.target.closest("a")) close()
+            onClickCapture?.(event)
+          }}
+        >
+          <div className="sidebar-dialog-header">
+            <h2 id="admin-mobile-navigation-title">Admin navigation</h2>
+            <button
+              type="button"
+              className="sidebar-close-button"
+              aria-label="Close navigation"
+              onClick={close}
+              autoFocus
+            >
+              <X aria-hidden="true" />
+            </button>
+          </div>
+          {children}
+        </div>
+      </dialog>
+    </div>
+  )
+}
 
 export const SidebarLink = ({
   link,
   className,
+  active = false,
+  onClick,
   ...props
 }: {
-  link: Links;
-  className?: string;
-  [key: string]: any;
+  link: Links
+  className?: string
+  active?: boolean
+  onClick?: React.MouseEventHandler<HTMLAnchorElement>
+  [key: string]: any
 }) => {
-  const { open, animate } = useSidebar();
+  const { setMobileOpen } = useSidebar()
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const current = pathname === link.href
+
   return (
     <Link
       to={link.href as any}
-      className={cn(
-        "flex items-center justify-start gap-2 group/sidebar py-2",
-        className
-      )}
+      className={cn("sidebar-link", className)}
+      aria-label={link.label}
+      aria-current={current ? "page" : undefined}
+      data-active={active || current ? "true" : undefined}
+      data-current={current ? "true" : undefined}
+      onClick={(event) => {
+        setMobileOpen(false)
+        onClick?.(event)
+      }}
       {...props}
     >
-      {link.icon}
-      <motion.span
-        animate={{
-          display: animate ? (open ? "inline-block" : "none") : "inline-block",
-          opacity: animate ? (open ? 1 : 0) : 1,
-        }}
-        className="text-neutral-700 dark:text-neutral-200 text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
-      >
-        {link.label}
-      </motion.span>
+      <span className="sidebar-link-icon" aria-hidden="true">{link.icon}</span>
+      <span className="sidebar-label">{link.label}</span>
     </Link>
-  );
-};
+  )
+}

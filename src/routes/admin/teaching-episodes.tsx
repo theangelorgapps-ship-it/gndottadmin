@@ -12,7 +12,7 @@ function Page() {
   const teachingShows = options.teaching.map((s: any) => ({ value: s.id, label: s.name }))
   return (
     <CrudTable
-      title="Episodes" group="Teaching" entity="teaching-episodes" rows={rows}
+      title="Episodes" group="Teachings" entity="teaching-episodes" rows={rows}
       columns={[{ key: 'name', label: 'Episode' }, { key: 'show', label: 'Teaching' }, { key: 'season', label: 'Volume (Series)' }, { key: 'duration', label: 'Duration' }, { key: 'status', label: 'Status', kind: 'pill' }]}
       fields={[
         { key: 'name', label: 'Name', required: true },

@@ -9,10 +9,20 @@ export const Route = createFileRoute('/admin/onboarding')({
 
 function Page() {
   const rows = Route.useLoaderData() as any[]
+
   return (
     <CrudTable
-      title="Onboarding" group="System Setting" entity="onboarding" rows={rows}
-      columns={[{ key: 'file_url', label: 'Screen', kind: 'img' }, { key: 'title', label: 'Title' }, { key: 'status', label: 'Status', kind: 'pill' }]}
+      title="Onboarding"
+      group="System Setting"
+      entity="onboarding"
+      rows={rows}
+      singular="onboarding screen"
+      empty="No onboarding screens found. Add a screen to guide new users."
+      columns={[
+        { key: 'file_url', label: 'Screen', kind: 'img' },
+        { key: 'title', label: 'Title', kind: 'title' },
+        { key: 'status', label: 'Status', kind: 'pill' },
+      ]}
       fields={[
         { key: 'title', label: 'Title', required: true },
         { key: 'file_url', label: 'Image', type: 'image' },

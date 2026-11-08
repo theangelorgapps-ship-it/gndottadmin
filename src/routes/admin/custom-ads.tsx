@@ -9,19 +9,35 @@ export const Route = createFileRoute('/admin/custom-ads')({
 
 function Page() {
   const rows = Route.useLoaderData() as any[]
+
   return (
     <CrudTable
-      title="Custom Ads" group="Ads Manager" entity="custom-ads" rows={rows}
-      columns={[{ key: 'id', label: 'ID' }, { key: 'name', label: 'Name' }, { key: 'type', label: 'Type' }, { key: 'status', label: 'Status', kind: 'pill' }]}
+      title="Custom Ads"
+      group="Ads Manager"
+      entity="custom-ads"
+      rows={rows}
+      singular="custom ad"
+      empty="No custom ads found. Add an ad to configure a campaign."
+      columns={[
+        { key: 'id', label: 'ID' },
+        { key: 'name', label: 'Name', kind: 'title' },
+        { key: 'type', label: 'Type' },
+        { key: 'status', label: 'Status', kind: 'pill' },
+      ]}
       fields={[
         { key: 'name', label: 'Name', required: true },
-        { key: 'type', label: 'Type', type: 'select', options: [{ value: 'image', label: 'Image' }, { value: 'video', label: 'Video' }] },
+        {
+          key: 'type', label: 'Type', type: 'select', options: [
+            { value: 'image', label: 'Image' },
+            { value: 'video', label: 'Video' },
+          ],
+        },
         { key: 'url_type', label: 'URL Type' },
         { key: 'placement', label: 'Placement' },
         { key: 'redirect_url', label: 'Redirect URL' },
         { key: 'duration', label: 'Duration' },
         { key: 'skip_enabled', label: 'Skippable', type: 'toggle' },
-        { key: 'skip_after', label: 'Skip After (s)' },
+        { key: 'skip_after', label: 'Skip After (seconds)' },
         { key: 'status', label: 'Status', type: 'toggle' },
       ]}
     />

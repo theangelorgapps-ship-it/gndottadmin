@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { authClient } from '../lib/auth-client'
 import { SocialSignIn } from '../components/SocialSignIn'
 import { login, requestOtp, verifyOtp } from '../lib/api'
@@ -15,87 +16,188 @@ export function AuthShell({ children, title }: { children: React.ReactNode; titl
   return (
     <div className="auth-wrap">
       <GlassFilter />
-      <div className="auth-card">
-        <GlassEffect
-          className="rounded-[28px]"
-          style={{ color: '#fff', cursor: 'default', width: '100%' }}
-        >
+      <main className="auth-card" aria-labelledby="auth-title">
+        <GlassEffect className="auth-glass">
           <div className="auth-glass-inner">
-            <img className="auth-logo" src="/default-image.jpg" alt="Streamit" />
-            <h1>{title}</h1>
+            <div className="auth-brand">
+              <span className="brand-mark" aria-hidden="true">GH</span>
+              <span>GoodNews Halobox</span>
+            </div>
+            <div className="auth-heading">
+              <p>Admin workspace</p>
+              <h1 id="auth-title">{title}</h1>
+              <span>Sign in to manage content, people, and publishing.</span>
+            </div>
             {children}
           </div>
         </GlassEffect>
-      </div>
+      </main>
     </div>
   )
 }
+
+type LoginMode = 'password' | 'email-code' | 'reset'
 
 function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
-  const [mode,setMode] = useState<'password'|'email-code'|'reset'>('password')
-  const [code,setCode] = useState('')
-  const [sent,setSent] = useState(false)
+  const [mode, setMode] = useState<LoginMode>('password')
+  const [code, setCode] = useState('')
+  const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  function switchMode(next: LoginMode) {
+    setMode(next)
+    setSent(false)
+    setCode('')
+    setPassword('')
+    setShowPw(false)
+    setError(null)
+    setMessage(null)
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (busy) return
     setBusy(true)
     setError(null)
+    setMessage(null)
     try {
       if (mode === 'reset') {
-        const res = sent ? await authClient.emailOtp.resetPassword({email:email.trim().toLowerCase(),otp:code,password}) : await authClient.emailOtp.requestPasswordReset({email:email.trim().toLowerCase()})
-        if (res.error) setError(res.error.status === 503 ? 'Email recovery is temporarily unavailable.' : 'Unable to reset your password. Check your code and use 8–72 characters.')
-        else if (!sent) { setSent(true); setError('If an eligible administrator account matches, a code has been sent. It expires in 5 minutes.') }
-        else { setMode('password'); setSent(false); setPassword(''); setCode(''); setError('Password updated. Sign in with your new password.') }
+        const res = sent
+          ? await authClient.emailOtp.resetPassword({ email: email.trim().toLowerCase(), otp: code, password })
+          : await authClient.emailOtp.requestPasswordReset({ email: email.trim().toLowerCase() })
+        if (res.error) {
+          setError(res.error.status === 503
+            ? 'Email recovery is temporarily unavailable.'
+            : 'Unable to reset your password. Check your code and use 8–72 characters.')
+        } else if (!sent) {
+          setSent(true)
+          setMessage('If an eligible administrator account matches, a code has been sent. It expires in 5 minutes.')
+        } else {
+          switchMode('password')
+          setMessage('Password updated. Sign in with your new password.')
+        }
         return
       }
-      const res = mode==='password' ? await login({data:{email,password}}) : sent ? await verifyOtp({data:{contact:email,code}}) : await requestOtp({data:{contact:email}})
+      const res = mode === 'password'
+        ? await login({ data: { email, password } })
+        : sent
+          ? await verifyOtp({ data: { contact: email, code } })
+          : await requestOtp({ data: { contact: email } })
       if (res.ok) {
-        if(mode==='email-code'&&!sent)setSent(true)
-        else window.location.href = '/admin'
+        if (mode === 'email-code' && !sent) {
+          setSent(true)
+          setMessage('If an eligible administrator account matches, a code has been sent. It expires in 5 minutes.')
+        } else {
+          window.location.href = '/admin'
+        }
       } else {
         setError(res.error ?? 'Login failed.')
       }
-    } catch (err: any) {
+    } catch {
       setError('Sign-in is temporarily unavailable. Please try again.')
     } finally {
       setBusy(false)
     }
   }
 
+  const passwordVisible = mode === 'password' || (mode === 'reset' && sent)
+  const codeVisible = sent && mode !== 'password'
+  const describedBy = error ? 'login-error' : message ? 'login-message' : undefined
+
   return (
-    <AuthShell title={<>GoodNews Halobox Admin</>}>
-      <form onSubmit={onSubmit}>
+    <AuthShell title={mode === 'reset' ? 'Reset your password' : 'Welcome back'}>
+      <form onSubmit={onSubmit} aria-busy={busy}>
         <div className="field">
-          <input type="email" aria-label="Email" autoComplete="email" maxLength={254} disabled={busy || sent} placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
+          <label htmlFor="login-email">Email address</label>
+          <input
+            id="login-email"
+            name="email"
+            type="email"
+            placeholder="you@example.org"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            required
+            autoFocus
+            autoComplete="email"
+            inputMode="email"
+            maxLength={254}
+            disabled={busy || sent}
+            aria-describedby={describedBy}
+          />
         </div>
-        {mode==='password' || (mode==='reset' && sent)?<div className="field field-pw">
-          <input type={showPw ? 'text' : 'password'} aria-label={mode === 'reset' ? 'New password' : 'Password'} autoComplete={mode === 'reset' ? 'new-password' : 'current-password'} minLength={mode === 'reset' ? 8 : undefined} maxLength={72} placeholder={mode === 'reset' ? 'New password (8–72 characters)' : 'Enter password'} value={password} onChange={(e) => setPassword(e.target.value)} required />
-          <button type="button" className="pw-eye" onClick={() => setShowPw(!showPw)} aria-label="Show password">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
+        {passwordVisible && <div className="field field-pw">
+          <label htmlFor="login-password">{mode === 'reset' ? 'New password' : 'Password'}</label>
+          <input
+            id="login-password"
+            name="password"
+            type={showPw ? 'text' : 'password'}
+            placeholder={mode === 'reset' ? 'New password (8–72 characters)' : 'Enter your password'}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            required
+            autoComplete={mode === 'reset' ? 'new-password' : 'current-password'}
+            minLength={mode === 'reset' ? 8 : undefined}
+            maxLength={72}
+            disabled={busy}
+            aria-describedby={describedBy}
+          />
+          <button
+            type="button"
+            className="pw-eye"
+            onClick={() => setShowPw((visible) => !visible)}
+            aria-label={showPw ? 'Hide password' : 'Show password'}
+            aria-pressed={showPw}
+            aria-controls="login-password"
+            title={showPw ? 'Hide password' : 'Show password'}
+            disabled={busy}
+          >
+            {showPw ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
           </button>
-        </div>
-        :sent?<div className="field"><input aria-label="6-digit sign-in code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,''))} required/></div>:null}
-        {mode==='reset' && sent && <div className="field"><input aria-label="6-digit reset code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,''))} required disabled={busy}/></div>}
+        </div>}
+        {codeVisible && <div className="field">
+          <label htmlFor="login-code">{mode === 'reset' ? 'Reset code' : 'Sign-in code'}</label>
+          <input
+            id="login-code"
+            name="code"
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="[0-9]{6}"
+            maxLength={6}
+            placeholder="6-digit code"
+            value={code}
+            onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))}
+            required
+            disabled={busy}
+            aria-describedby={describedBy}
+          />
+        </div>}
         <div className="auth-row">
-          <button type="button" className="btn btn-ghost" disabled={busy} onClick={()=>{setMode(mode==='password'?'email-code':'password');setSent(false);setCode('');setError(null)}}>{mode==='password' || (mode==='reset' && sent)?'Sign in with an email code':'Use a password'}</button>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={busy}
+            onClick={() => switchMode(mode === 'password' ? 'email-code' : 'password')}
+          >
+            {mode === 'password' ? 'Sign in with an email code' : 'Use a password'}
+          </button>
+          {mode === 'password' && <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => switchMode('reset')}>Forgot password?</button>}
         </div>
-        {mode === 'password' && <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => { setMode('reset'); setSent(false); setCode(''); setPassword(''); setError(null) }}>Forgot password?</button>}
-        {error && <div className="error">{error}</div>}
-        <button className="btn btn-primary auth-btn" disabled={busy}>
-          {busy ? 'Please wait…' : mode==='reset' ? sent ? 'Update password' : 'Send reset code' : mode==='email-code'&&!sent?'Send sign-in code':'Sign In'}
+        {error && <div className="error" id="login-error" role="alert">{error}</div>}
+        {message && <p id="login-message" role="status">{message}</p>}
+        <button type="submit" className="btn btn-primary auth-btn" disabled={busy}>
+          {busy ? 'Please wait…'
+            : mode === 'reset' ? sent ? 'Update password' : 'Send reset code'
+            : mode === 'email-code' && !sent ? 'Send sign-in code'
+            : 'Sign in'}
         </button>
       </form>
-      <SocialSignIn callbackURL="/admin"/>
-
+      <SocialSignIn callbackURL="/admin" />
     </AuthShell>
   )
 }
