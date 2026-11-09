@@ -11,6 +11,11 @@ export const Route = createRootRoute({
       { name: 'description', content: 'GoodNews Halobox content and operations administration.' },
       { title: 'GoodNews Halobox Admin' },
     ],
+    links: [
+      { rel: 'icon', href: '/favicon.ico', sizes: '16x16 32x32 48x48' },
+      { rel: 'icon', type: 'image/png', href: '/favicon-32.png', sizes: '32x32' },
+      { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+    ],
   }),
   component: RootComponent,
 })
