@@ -5,7 +5,7 @@ import {
   Radio, MonitorPlay, Users, Megaphone, BadgePercent, Crown,
   Layers, SlidersHorizontal, Receipt, TicketPercent, UserRound, Hourglass,
   GraduationCap, Image, Braces, Bell, Settings, FileText, Rocket, Percent, CircleHelp,
-  Languages, Globe, DollarSign, MapPinned, ShieldCheck, MessagesSquare,
+  Languages, Globe, DollarSign, MapPinned, ShieldCheck, MessagesSquare, CloudUpload, FileSpreadsheet,
 } from 'lucide-react'
 import { getWorkspaceSession } from '../lib/live-moderation'
 import { SidebarWithTabs } from '../components/ui/sidebar-with-chrome-like-tabs'
@@ -13,6 +13,8 @@ import { ToastProvider } from '../lib/toast'
 import { ConfirmProvider } from '../lib/confirm'
 import { AdminBrand } from '../components/AdminBrand'
 import { AdminProfileMenu } from '../components/AdminProfileMenu'
+import { IngestProvider } from '../lib/ingest'
+import { IngestWidget } from '../components/IngestWidget'
 import '../admin-polish.css'
 import '../admin-shell.css'
 
@@ -44,6 +46,8 @@ const GROUPS: { title: string; items: SideItem[] }[] = [
     items: [
       { to: '/admin', label: 'Dashboard', icon: <LayoutDashboard className={ICON} /> },
       { to: '/admin/media-library', label: 'Media Library', icon: <Library className={ICON} /> },
+      { to: '/admin/media-ingest', label: 'Media Ingest', icon: <CloudUpload className={ICON} /> },
+      { to: '/admin/bulk-upload', label: 'Bulk Upload', icon: <FileSpreadsheet className={ICON} /> },
       { to: '/admin/live-comments', label: 'Live Comments', icon: <MessagesSquare className={ICON} /> },
     ],
   },
@@ -135,24 +139,33 @@ function AdminLayout() {
   const navigating = useRouterState({ select: (state) => state.isLoading })
   const moderator = admin.workspaceRole === 'moderator'
 
+  const shell = (
+    <SidebarWithTabs
+      key={`${admin.id}:${admin.workspaceRole}`}
+      storageKey={`halobox:workspace-tabs:v1:${admin.id}:${admin.workspaceRole}`}
+      groups={moderator ? MODERATOR_GROUPS : GROUPS}
+      brand={<AdminBrand homeHref={moderator ? '/admin/live-comments' : '/admin'} />}
+      account={<AdminProfileMenu admin={admin} />}
+      navigating={navigating}
+      footer={<div className="sidebar-account">
+            <span className="sidebar-account-icon" aria-hidden="true"><UserRound /></span>
+            <span className="sidebar-account-copy sidebar-label">
+              <small>{moderator ? 'Channel moderator' : 'Signed in as'}</small>
+              <span title={admin.email}>{admin.email}</span>
+            </span>
+          </div>}
+    ><Outlet /></SidebarWithTabs>
+  )
+
   return (
     <ToastProvider>
       <ConfirmProvider>
-        <SidebarWithTabs
-          key={`${admin.id}:${admin.workspaceRole}`}
-          storageKey={`halobox:workspace-tabs:v1:${admin.id}:${admin.workspaceRole}`}
-          groups={moderator ? MODERATOR_GROUPS : GROUPS}
-          brand={<AdminBrand homeHref={moderator ? '/admin/live-comments' : '/admin'} />}
-          account={<AdminProfileMenu admin={admin} />}
-          navigating={navigating}
-          footer={<div className="sidebar-account">
-                <span className="sidebar-account-icon" aria-hidden="true"><UserRound /></span>
-                <span className="sidebar-account-copy sidebar-label">
-                  <small>{moderator ? 'Channel moderator' : 'Signed in as'}</small>
-                  <span title={admin.email}>{admin.email}</span>
-                </span>
-              </div>}
-        ><Outlet /></SidebarWithTabs>
+        {moderator ? shell : (
+          <IngestProvider>
+            {shell}
+            <IngestWidget />
+          </IngestProvider>
+        )}
       </ConfirmProvider>
     </ToastProvider>
   )

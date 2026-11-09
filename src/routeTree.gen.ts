@@ -16,6 +16,7 @@ import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminAccessControlRouteImport } from './routes/admin/access-control'
 import { Route as AdminActorsRouteImport } from './routes/admin/actors'
 import { Route as AdminBannersRouteImport } from './routes/admin/banners'
+import { Route as AdminBulkUploadRouteImport } from './routes/admin/bulk-upload'
 import { Route as AdminConstantsRouteImport } from './routes/admin/constants'
 import { Route as AdminCountriesRouteImport } from './routes/admin/countries'
 import { Route as AdminCouponsRouteImport } from './routes/admin/coupons'
@@ -29,6 +30,7 @@ import { Route as AdminLanguageRouteImport } from './routes/admin/language'
 import { Route as AdminLiveCommentsRouteImport } from './routes/admin/live-comments'
 import { Route as AdminLiveTvRouteImport } from './routes/admin/live-tv'
 import { Route as AdminLocationsRouteImport } from './routes/admin/locations'
+import { Route as AdminMediaIngestRouteImport } from './routes/admin/media-ingest'
 import { Route as AdminMediaLibraryRouteImport } from './routes/admin/media-library'
 import { Route as AdminMoviesRouteImport } from './routes/admin/movies'
 import { Route as AdminNotificationTemplatesRouteImport } from './routes/admin/notification-templates'
@@ -91,6 +93,11 @@ const AdminActorsRoute = AdminActorsRouteImport.update({
 const AdminBannersRoute = AdminBannersRouteImport.update({
   id: '/banners',
   path: '/banners',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminBulkUploadRoute = AdminBulkUploadRouteImport.update({
+  id: '/bulk-upload',
+  path: '/bulk-upload',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminConstantsRoute = AdminConstantsRouteImport.update({
@@ -156,6 +163,11 @@ const AdminLiveTvRoute = AdminLiveTvRouteImport.update({
 const AdminLocationsRoute = AdminLocationsRouteImport.update({
   id: '/locations',
   path: '/locations',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminMediaIngestRoute = AdminMediaIngestRouteImport.update({
+  id: '/media-ingest',
+  path: '/media-ingest',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminMediaLibraryRoute = AdminMediaLibraryRouteImport.update({
@@ -307,6 +319,7 @@ export interface FileRoutesByFullPath {
   '/admin/access-control': typeof AdminAccessControlRoute
   '/admin/actors': typeof AdminActorsRoute
   '/admin/banners': typeof AdminBannersRoute
+  '/admin/bulk-upload': typeof AdminBulkUploadRoute
   '/admin/constants': typeof AdminConstantsRoute
   '/admin/countries': typeof AdminCountriesRoute
   '/admin/coupons': typeof AdminCouponsRoute
@@ -320,6 +333,7 @@ export interface FileRoutesByFullPath {
   '/admin/live-comments': typeof AdminLiveCommentsRoute
   '/admin/live-tv': typeof AdminLiveTvRoute
   '/admin/locations': typeof AdminLocationsRoute
+  '/admin/media-ingest': typeof AdminMediaIngestRoute
   '/admin/media-library': typeof AdminMediaLibraryRoute
   '/admin/movies': typeof AdminMoviesRoute
   '/admin/notification-templates': typeof AdminNotificationTemplatesRoute
@@ -356,6 +370,7 @@ export interface FileRoutesByTo {
   '/admin/access-control': typeof AdminAccessControlRoute
   '/admin/actors': typeof AdminActorsRoute
   '/admin/banners': typeof AdminBannersRoute
+  '/admin/bulk-upload': typeof AdminBulkUploadRoute
   '/admin/constants': typeof AdminConstantsRoute
   '/admin/countries': typeof AdminCountriesRoute
   '/admin/coupons': typeof AdminCouponsRoute
@@ -369,6 +384,7 @@ export interface FileRoutesByTo {
   '/admin/live-comments': typeof AdminLiveCommentsRoute
   '/admin/live-tv': typeof AdminLiveTvRoute
   '/admin/locations': typeof AdminLocationsRoute
+  '/admin/media-ingest': typeof AdminMediaIngestRoute
   '/admin/media-library': typeof AdminMediaLibraryRoute
   '/admin/movies': typeof AdminMoviesRoute
   '/admin/notification-templates': typeof AdminNotificationTemplatesRoute
@@ -407,6 +423,7 @@ export interface FileRoutesById {
   '/admin/access-control': typeof AdminAccessControlRoute
   '/admin/actors': typeof AdminActorsRoute
   '/admin/banners': typeof AdminBannersRoute
+  '/admin/bulk-upload': typeof AdminBulkUploadRoute
   '/admin/constants': typeof AdminConstantsRoute
   '/admin/countries': typeof AdminCountriesRoute
   '/admin/coupons': typeof AdminCouponsRoute
@@ -420,6 +437,7 @@ export interface FileRoutesById {
   '/admin/live-comments': typeof AdminLiveCommentsRoute
   '/admin/live-tv': typeof AdminLiveTvRoute
   '/admin/locations': typeof AdminLocationsRoute
+  '/admin/media-ingest': typeof AdminMediaIngestRoute
   '/admin/media-library': typeof AdminMediaLibraryRoute
   '/admin/movies': typeof AdminMoviesRoute
   '/admin/notification-templates': typeof AdminNotificationTemplatesRoute
@@ -459,6 +477,7 @@ export interface FileRouteTypes {
     | '/admin/access-control'
     | '/admin/actors'
     | '/admin/banners'
+    | '/admin/bulk-upload'
     | '/admin/constants'
     | '/admin/countries'
     | '/admin/coupons'
@@ -472,6 +491,7 @@ export interface FileRouteTypes {
     | '/admin/live-comments'
     | '/admin/live-tv'
     | '/admin/locations'
+    | '/admin/media-ingest'
     | '/admin/media-library'
     | '/admin/movies'
     | '/admin/notification-templates'
@@ -508,6 +528,7 @@ export interface FileRouteTypes {
     | '/admin/access-control'
     | '/admin/actors'
     | '/admin/banners'
+    | '/admin/bulk-upload'
     | '/admin/constants'
     | '/admin/countries'
     | '/admin/coupons'
@@ -521,6 +542,7 @@ export interface FileRouteTypes {
     | '/admin/live-comments'
     | '/admin/live-tv'
     | '/admin/locations'
+    | '/admin/media-ingest'
     | '/admin/media-library'
     | '/admin/movies'
     | '/admin/notification-templates'
@@ -558,6 +580,7 @@ export interface FileRouteTypes {
     | '/admin/access-control'
     | '/admin/actors'
     | '/admin/banners'
+    | '/admin/bulk-upload'
     | '/admin/constants'
     | '/admin/countries'
     | '/admin/coupons'
@@ -571,6 +594,7 @@ export interface FileRouteTypes {
     | '/admin/live-comments'
     | '/admin/live-tv'
     | '/admin/locations'
+    | '/admin/media-ingest'
     | '/admin/media-library'
     | '/admin/movies'
     | '/admin/notification-templates'
@@ -664,6 +688,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminBannersRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/bulk-upload': {
+      id: '/admin/bulk-upload'
+      path: '/bulk-upload'
+      fullPath: '/admin/bulk-upload'
+      preLoaderRoute: typeof AdminBulkUploadRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/constants': {
       id: '/admin/constants'
       path: '/constants'
@@ -753,6 +784,13 @@ declare module '@tanstack/react-router' {
       path: '/locations'
       fullPath: '/admin/locations'
       preLoaderRoute: typeof AdminLocationsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/media-ingest': {
+      id: '/admin/media-ingest'
+      path: '/media-ingest'
+      fullPath: '/admin/media-ingest'
+      preLoaderRoute: typeof AdminMediaIngestRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/media-library': {
@@ -958,6 +996,7 @@ interface AdminRouteChildren {
   AdminAccessControlRoute: typeof AdminAccessControlRoute
   AdminActorsRoute: typeof AdminActorsRoute
   AdminBannersRoute: typeof AdminBannersRoute
+  AdminBulkUploadRoute: typeof AdminBulkUploadRoute
   AdminConstantsRoute: typeof AdminConstantsRoute
   AdminCountriesRoute: typeof AdminCountriesRoute
   AdminCouponsRoute: typeof AdminCouponsRoute
@@ -971,6 +1010,7 @@ interface AdminRouteChildren {
   AdminLiveCommentsRoute: typeof AdminLiveCommentsRoute
   AdminLiveTvRoute: typeof AdminLiveTvRoute
   AdminLocationsRoute: typeof AdminLocationsRoute
+  AdminMediaIngestRoute: typeof AdminMediaIngestRoute
   AdminMediaLibraryRoute: typeof AdminMediaLibraryRoute
   AdminMoviesRoute: typeof AdminMoviesRoute
   AdminNotificationTemplatesRoute: typeof AdminNotificationTemplatesRoute
@@ -1001,6 +1041,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAccessControlRoute: AdminAccessControlRoute,
   AdminActorsRoute: AdminActorsRoute,
   AdminBannersRoute: AdminBannersRoute,
+  AdminBulkUploadRoute: AdminBulkUploadRoute,
   AdminConstantsRoute: AdminConstantsRoute,
   AdminCountriesRoute: AdminCountriesRoute,
   AdminCouponsRoute: AdminCouponsRoute,
@@ -1014,6 +1055,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminLiveCommentsRoute: AdminLiveCommentsRoute,
   AdminLiveTvRoute: AdminLiveTvRoute,
   AdminLocationsRoute: AdminLocationsRoute,
+  AdminMediaIngestRoute: AdminMediaIngestRoute,
   AdminMediaLibraryRoute: AdminMediaLibraryRoute,
   AdminMoviesRoute: AdminMoviesRoute,
   AdminNotificationTemplatesRoute: AdminNotificationTemplatesRoute,
