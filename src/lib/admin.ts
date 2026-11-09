@@ -1,5 +1,5 @@
 import { liveUrl, liveEmbedUrl, resolveLiveSource } from './live-sources'
-import { sanitizeContentHtml, RICH_TEXT_FIELDS } from './rich-text'
+import { safeContentLink, sanitizeContentHtml, RICH_TEXT_FIELDS } from './rich-text'
 import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 import { env } from 'cloudflare:workers'
 import { getRequest } from '@tanstack/react-start/server'
@@ -880,6 +880,7 @@ export const adminUpsertRow = createServerFn({ method: 'POST' })
       if (f.startsWith('social_')) continue
       if (f in data.values) {
         let v = data.values[f]
+        if (data.entity === 'custom-ads' && f === 'redirect_url') v = safeContentLink(v)
         if (RICH_TEXT_FIELDS[data.entity]?.includes(f)) v = sanitizeContentHtml(v)
         if (typeof v === 'string') v = v.trim()
         if (v === '') v = null

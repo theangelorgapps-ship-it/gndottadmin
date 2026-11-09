@@ -252,7 +252,7 @@ export function CrudTable({
                     ) : field.type === 'toggle' ? (
                       <select
                         id={inputId}
-                        value={editing[field.key] ? 1 : 0}
+                        value={Number(editing[field.key]) === 1 ? 1 : 0}
                         disabled={busy}
                         data-initial-focus={index === 0 ? true : undefined}
                         onChange={(event) => setEditing({ ...editing, [field.key]: Number(event.target.value) })}

@@ -42,6 +42,7 @@ CREATE TABLE pages(id INTEGER PRIMARY KEY,name TEXT,slug TEXT,description TEXT,s
 CREATE TABLE faqs(id INTEGER PRIMARY KEY,question TEXT,answer TEXT,status INTEGER,created_at TEXT,updated_at TEXT);
 CREATE TABLE entertainments(id INTEGER PRIMARY KEY,name TEXT,slug TEXT,type TEXT,description TEXT,created_by INTEGER,updated_by INTEGER,created_at TEXT,updated_at TEXT,deleted_at TEXT);
 CREATE TABLE videos(id INTEGER PRIMARY KEY,name TEXT,slug TEXT,description TEXT,created_by INTEGER,updated_by INTEGER,created_at TEXT,updated_at TEXT,deleted_at TEXT);`)
+sql.exec(`CREATE TABLE custom_ads_setting(id INTEGER PRIMARY KEY,name TEXT,media TEXT,redirect_url TEXT,placement TEXT,is_enable INTEGER,status INTEGER,created_at TEXT,updated_at TEXT,deleted_at TEXT);`)
 const database = {
   first: async (query, ...args) => sql.prepare(query).get(...args) ?? null,
   all: async (query, ...args) => sql.prepare(query).all(...args),
@@ -65,6 +66,15 @@ for (const [table, field] of [['pages', 'description'], ['faqs', 'answer'], ['en
 await admin.adminUpsertRow({ data: { entity: 'pages', id: 1, values: { description: '<h3>Updated</h3><ol><li>One</li></ol>' } } })
 assert.equal(sql.prepare('SELECT description FROM pages WHERE id=1').get().description, '<h3>Updated</h3><ol><li>One</li></ol>')
 assert.equal((await admin.adminGetRow({ data: { entity: 'pages', id: 1 } })).description, '<h3>Updated</h3><ol><li>One</li></ol>')
+for (const url of ['javascript:alert(1)', 'data:text/html,bad', '//example.test', '/\\\\example.test', 'https://user:secret@example.test', 'http://example.test', 'https://exam\nple.test']) {
+  await assert.rejects(() => admin.adminUpsertRow({ data: { entity: 'custom-ads', values: { name: 'Unsafe', redirect_url: url } } }), /HTTPS|website path/)
+}
+const ad = await admin.adminUpsertRow({ data: { entity: 'custom-ads', values: { name: 'Campaign', media: '/media/ad.avif', redirect_url: 'https://example.test/offer', placement: 'home_page', is_enable: 1, status: 1 } } })
+assert.equal((await admin.adminGetRow({ data: { entity: 'custom-ads', id: ad.id } })).media, '/media/ad.avif')
+await admin.adminUpsertRow({ data: { entity: 'custom-ads', id: ad.id, values: { redirect_url: '/shop' } } })
+assert.equal(sql.prepare('SELECT redirect_url FROM custom_ads_setting WHERE id=?').get(ad.id).redirect_url, '/shop')
+await admin.adminDeleteRow({ data: { entity: 'custom-ads', id: ad.id } })
+assert.ok(sql.prepare('SELECT deleted_at FROM custom_ads_setting WHERE id=?').get(ad.id).deleted_at)
 session = null
 await assert.rejects(() => admin.adminUpsertRow({ data: { entity: 'pages', id: 1, values: { description: 'unauthorized' } } }), /Sign in required/)
 session = { uid: 1 }; sql.exec("UPDATE users SET user_type='demo_admin'")
