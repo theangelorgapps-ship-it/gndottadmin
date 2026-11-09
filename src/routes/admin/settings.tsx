@@ -515,7 +515,7 @@ function AdminSettings() {
           )}
         </section>
       </div>
-      <UploadDialog open={uploadingKey !== null} title="Upload settings image" accept="image/*" onClose={() => setUploadingKey(null)} onUploaded={(url) => { if (uploadingKey) setValues(current => ({ ...current, [uploadingKey]: url })); setUploadingKey(null) }} />
+      <UploadDialog open={uploadingKey !== null} currentValue={uploadingKey ? values[uploadingKey] : null} title="Choose settings image" accept="image/*" onClose={() => setUploadingKey(null)} onUploaded={(url) => { if (uploadingKey) setValues(current => ({ ...current, [uploadingKey]: url })); setUploadingKey(null) }} />
     </div>
   )
 }

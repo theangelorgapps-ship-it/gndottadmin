@@ -116,6 +116,6 @@ function LocationEditor({ initial, titles, onClose, onSaved }: { initial: Locati
       {error && <p className="location-editor-error" role="alert">{error}</p>}
       <footer><button type="button" className="btn btn-dark" disabled={busy || uploading} onClick={onClose}>Cancel</button><button type="submit" className="btn btn-primary" disabled={busy || uploading}>{busy ? 'Saving…' : 'Save location'}</button></footer>
     </form>
-    <UploadDialog open={uploading} title="Upload location image" accept="image/*" onClose={() => setUploading(false)} onUploaded={(url) => { setValue(current => ({ ...current, file_url: url })); setUploading(false) }} />
+    <UploadDialog open={uploading} currentValue={value.file_url} title="Choose location image" accept="image/*" onClose={() => setUploading(false)} onUploaded={(url) => { setValue(current => ({ ...current, file_url: url })); setUploading(false) }} />
   </dialog>
 }

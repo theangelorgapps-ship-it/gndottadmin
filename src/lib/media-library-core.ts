@@ -12,7 +12,7 @@ export interface MediaAsset {
   key: string; name: string; folder: string; size: number; uploaded: string | null; etag: string
   kind: MediaKind; url: string; ocr_status: OcrStatus; ocr_text: string; ocr_error: string | null; confidence: number | null
 }
-export type MediaFilters = { query?: string; mode?: 'text' | 'filename'; folder?: string; from?: string; to?: string; offset?: number }
+export type MediaFilters = { kind?: MediaKind | ''; query?: string; mode?: 'text' | 'filename'; folder?: string; from?: string; to?: string; offset?: number }
 export class MediaError extends Error {
   constructor(public status: number, message: string) { super(message) }
 }
@@ -35,7 +35,8 @@ export function mediaKind(key: string): MediaKind {
 export function assetFolder(key: string) { return key.includes('/') ? key.split('/')[0] : 'Unsorted' }
 export function validFilters(value: MediaFilters = {}): Required<MediaFilters> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new MediaError(400, 'Invalid search.')
-  const { query = '', mode = 'text', folder = '', from = '', to = '', offset = 0 } = value
+  const { kind = '', query = '', mode = 'text', folder = '', from = '', to = '', offset = 0 } = value
+  if (!['', 'image', 'document', 'subtitle', 'other'].includes(kind)) throw new MediaError(400, 'Choose a valid media type.')
   if (typeof query !== 'string' || query.length > 160 || !['text', 'filename'].includes(mode)) throw new MediaError(400, 'Invalid search.')
   if (typeof folder !== 'string' || folder.length > 200 || /[\x00-\x1f]/.test(folder)) throw new MediaError(400, 'Invalid folder.')
   for (const date of [from, to]) {
@@ -44,7 +45,7 @@ export function validFilters(value: MediaFilters = {}): Required<MediaFilters> {
   }
   if (from && to && from > to) throw new MediaError(400, 'The end date must follow the start date.')
   if (!Number.isSafeInteger(offset) || offset < 0 || offset > 1_000_000) throw new MediaError(400, 'Invalid page.')
-  return { query: query.trim(), mode, folder, from, to, offset }
+  return { kind, query: query.trim(), mode, folder, from, to, offset }
 }
 export function sqlLike(value: string) { return value.replace(/[\\%_]/g, '\\$&') }
 export function assertMediaOrigin(request: Request) {

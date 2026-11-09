@@ -25,7 +25,7 @@ function Page() {
       fields={[
         { key: 'question', label: 'Question', required: true },
         { key: 'status', label: 'Status', type: 'toggle' },
-        { key: 'answer', label: 'Answer', type: 'textarea' },
+        { key: 'answer', label: 'Answer', type: 'richtext' },
       ]}
     />
   )

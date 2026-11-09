@@ -179,7 +179,7 @@ function AdminGenres() {
               <button type="submit" className="btn btn-primary" disabled={busy || uploadOpen}>{busy ? 'Saving…' : 'Save'}</button>
             </div>
           </form>
-          <UploadDialog open={uploadOpen} onClose={() => setUploadOpen(false)} title="Upload category image" accept="image/*" onUploaded={(url) => { setEditing(current => current ? { ...current, file_url: url } : current); setUploadOpen(false) }} />
+          <UploadDialog open={uploadOpen} currentValue={editing?.file_url} onClose={() => setUploadOpen(false)} title="Choose category image" accept="image/*" onUploaded={(url) => { setEditing(current => current ? { ...current, file_url: url } : current); setUploadOpen(false) }} />
         </dialog>
       )}
     </div>

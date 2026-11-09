@@ -11,7 +11,7 @@ export function seriesFields(type: 'tvshow' | 'teaching', parents: any[]): Field
     { key: 'price', label: 'Price', type: 'number' },
     { key: 'status', label: 'Status', type: 'toggle' },
     { key: 'short_desc', label: 'Short Description', type: 'textarea' },
-    { key: 'description', label: 'Description', type: 'textarea' },
+    { key: 'description', label: 'Description', type: 'richtext' },
   ]
 }
 

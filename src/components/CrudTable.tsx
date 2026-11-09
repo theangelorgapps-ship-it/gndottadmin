@@ -6,6 +6,8 @@ import { useToast } from '../lib/toast'
 import { AdminDataTable, type DataCol } from './AdminDataTable'
 import { AdminImagePreview } from './Poster'
 import { UploadDialog } from './UploadDialog'
+import { RichTextEditor } from './RichTextEditor'
+import { richTextHasContent } from '../lib/rich-text'
 import { fieldOptions, changeField, type Field } from '../lib/crud-fields'
 export type { Field } from '../lib/crud-fields'
 
@@ -115,7 +117,7 @@ export function CrudTable({
       const values: Record<string, any> = {}
       for (const field of fields) {
         let value = editing[field.key]
-        if (field.required && (value == null || String(value).trim() === '')) throw new Error(`${field.label} is required.`)
+        if (field.required && (field.type === 'richtext' ? !richTextHasContent(value) : value == null || String(value).trim() === '')) throw new Error(`${field.label} is required.`)
         if (field.type === 'number') {
           value = value === '' || value == null ? null : Number(value)
           if (value !== null && !Number.isFinite(value)) throw new Error(`${field.label} must be a number.`)
@@ -219,11 +221,13 @@ export function CrudTable({
                 const parentLabel = fields.find((candidate) => candidate.key === field.dependsOn)?.label ?? 'parent'
                 const options = fieldOptions(field, editing)
                 return (
-                  <div key={field.key} className={`mfield ${field.type === 'textarea' || field.type === 'image' ? 'span2' : ''}`}>
+                  <div key={field.key} className={`mfield ${field.type === 'textarea' || field.type === 'richtext' || field.type === 'image' ? 'span2' : ''}`}>
                     <label htmlFor={inputId}>
                       {field.label}{field.required ? <span aria-hidden="true"> *</span> : null}
                     </label>
-                    {field.type === 'textarea' ? (
+                    {field.type === 'richtext' ? (
+                      <RichTextEditor id={inputId} label={field.label} value={editing[field.key] ?? ''} disabled={busy} required={field.required} initialFocus={index === 0} onChange={html => setEditing(current => current ? { ...current, [field.key]: html } : current)} />
+                    ) : field.type === 'textarea' ? (
                       <textarea
                         id={inputId}
                         rows={3}
@@ -276,7 +280,7 @@ export function CrudTable({
                             aria-busy={uploading === field.key}
                             onClick={() => setUploading(field.key)}
                           >
-                            {uploading === field.key ? 'Uploading…' : 'Upload'}
+                            {uploading === field.key ? 'Choosing…' : 'Choose image'}
                           </button>
 
                         </span>
@@ -312,7 +316,7 @@ export function CrudTable({
               </button>
             </div>
           </form>
-          <UploadDialog open={uploading !== null} title={`Upload ${fields.find(field => field.key === uploading)?.label ?? 'image'}`} accept="image/*" onClose={() => setUploading(null)} onUploaded={(url) => { if (uploading) setEditing(current => current ? { ...current, [uploading]: url } : current); setUploading(null) }} />
+          <UploadDialog open={uploading !== null} currentValue={uploading ? editing[uploading] : null} title={`Choose ${fields.find(field => field.key === uploading)?.label ?? 'image'}`} accept="image/*" onClose={() => setUploading(null)} onUploaded={(url) => { if (uploading) setEditing(current => current ? { ...current, [uploading]: url } : current); setUploading(null) }} />
         </dialog>
       )}
     </div>

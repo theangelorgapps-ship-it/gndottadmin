@@ -25,3 +25,13 @@ export function validateHeroDesign(value: unknown): HeroDesign {
   }
   return { version: 1, devices }
 }
+
+/** Empty overrides deliberately follow the selected title, including future artwork changes. */
+export function heroArtwork(device: HeroDevice, banner: { file_url?: string; poster_url?: string; design_json?: string }, title?: { poster_url?: string; thumbnail_url?: string }): string {
+  if (banner.design_json) {
+    try { const override = validateHeroDesign(JSON.parse(banner.design_json)).devices[device]?.image; if (override) return override } catch { /* Invalid legacy layout falls back to title artwork. */ }
+  }
+  return device === 'phone' || device === 'app'
+    ? banner.poster_url || title?.poster_url || banner.file_url || title?.thumbnail_url || ''
+    : banner.file_url || title?.thumbnail_url || title?.poster_url || banner.poster_url || ''
+}

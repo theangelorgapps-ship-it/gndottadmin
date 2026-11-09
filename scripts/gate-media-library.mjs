@@ -89,7 +89,7 @@ assert.throws(()=>core.classifyUpload('a.vtt',new TextEncoder().encode('WEBVTT\n
 assert.throws(()=>core.classifyUpload('a.srt',new Uint8Array([255,255])),/UTF-8/)
 assert.throws(()=>core.classifyUpload('a.srt',new TextEncoder().encode('not a subtitle')),/invalid/)
 for(const key of ['private/a.avif','PRIVATE/a.avif','../a.png','x/%2e.png','x/../a.png','x\\a.png','x//a.png'])assert.equal(core.publicMediaKey(key),false,key)
-for(const data of [null,[],{from:2026},{from:'2026-02-30'},{from:'2026-12-01',to:'2026-01-01'},{mode:'sql'},{offset:-1}])assert.throws(()=>core.validFilters(data))
+for(const data of [null,[],{from:2026},{from:'2026-02-30'},{from:'2026-12-01',to:'2026-01-01'},{mode:'sql'},{offset:-1},{kind:'script'}])assert.throws(()=>core.validFilters(data))
 
 // Multipart auth/origin/size boundaries are checked before any object is stored.
 const post=(origin='https://fort.halobox.tv',blob=new File([bytes],'photo.png',{type:'image/png'}))=>{const form=new FormData();form.append('file',blob);return new Request('https://fort.halobox.tv/api/upload',{method:'POST',headers:origin?{origin}:{},body:form})}
@@ -160,6 +160,9 @@ assert.equal(byDate.total,100);assert.equal(byDate.assets.length,48)
 const nextPage=await server.listMediaLibrary({data:{folder:'legacy-20261105',from:'2022-01-01',to:'2022-12-31',offset:48}})
 assert.notEqual(nextPage.assets[0].key,byDate.assets[0].key)
 assert.equal((await server.listMediaLibrary({data:{mode:'filename',query:'%'}})).total,0)
+const imagePage=await server.listMediaLibrary({data:{kind:'image',mode:'filename',query:'000'}})
+assert.ok(imagePage.assets.length>0);assert.ok(imagePage.assets.every(asset=>asset.kind==='image'))
+assert.equal((await server.listMediaLibrary({data:{kind:'subtitle'}})).total,0,'picker filters are applied before pagination')
 assert.equal((await server.listMediaLibrary({data:{query:'749ab'}})).total,0,'filenames must not masquerade as OCR')
 assert.equal((await server.listMediaLibrary({data:{query:'long genuine image text query '.repeat(4)}})).ok,true,'valid OCR searches must respect the D1 pattern limit')
 

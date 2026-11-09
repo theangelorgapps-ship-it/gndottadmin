@@ -3,6 +3,9 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { adminListChannels, adminUpsertChannel, adminDeleteChannel } from '../../lib/admin'
 import { useConfirm } from '../../lib/confirm'
 import { useToast } from '../../lib/toast'
+import { UploadButton } from '../../components/admin-content'
+import { AdminImagePreview } from '../../components/Poster'
+import { RichTextEditor } from '../../components/RichTextEditor'
 import { AdminDataTable } from '../../components/AdminDataTable'
 
 export const Route = createFileRoute('/admin/live-tv')({
@@ -10,7 +13,9 @@ export const Route = createFileRoute('/admin/live-tv')({
   component: AdminLiveTv,
 })
 
-type CForm = { id?: number; name: string; category_id: number | ''; access: string; description: string; status: number }
+type CForm = { id?: number; name: string; category_id: number | ''; access: string; description: string; status: number;
+  poster_url: string; thumbnail_url: string; source_kind: 'hls'|'rtmp'|'embed'; hls_url: string; ingest_url: string; embed_url: string;
+  comments_enabled: boolean; slow_mode: number }
 
 function AdminLiveTv() {
   const { channels, categories } = Route.useLoaderData()
@@ -49,7 +54,10 @@ function AdminLiveTv() {
       access: channel.access ?? 'free',
       description: channel.description ?? '',
       status: channel.status ?? 1,
-    } : { name: '', category_id: '', access: 'free', description: '', status: 1 })
+      poster_url: channel.poster_url || '', thumbnail_url: channel.thumbnail_url || '',
+      source_kind: channel.source_kind || 'hls', hls_url: channel.hls_url || '', ingest_url: channel.ingest_url || '', embed_url: channel.embed_url || '',
+      comments_enabled: !!channel.comments_enabled, slow_mode: channel.slow_mode ?? 5,
+    } : { name: '', category_id: '', access: 'free', description: '', status: 0, poster_url: '', thumbnail_url: '', source_kind: 'hls', hls_url: '', ingest_url: '', embed_url: '', comments_enabled: true, slow_mode: 5 })
   }
 
   function requestClose() {
@@ -104,7 +112,7 @@ function AdminLiveTv() {
     <div className="min-w-0">
       <div className="breadcrumb">Dashboard <span className="sep">/</span> <span className="here">Live TV</span></div>
       <div className="toolbar">
-        <span className="text-sm text-muted-foreground">Manage live channels, categories, and access.</span>
+        <span className="text-sm text-muted-foreground">Connect a live stream, choose its artwork, and manage viewing access.</span>
         <span className="spacer" />
         <button type="button" className="btn btn-primary" onClick={() => openEditor()} disabled={busy}>+ New Channel</button>
       </div>
@@ -112,6 +120,8 @@ function AdminLiveTv() {
         rows={channels}
         columns={[
           { key: 'poster_url', label: 'Channel', kind: 'img' },
+          { key: 'name', label: 'Name' },
+          { key: 'source_kind', label: 'Stream' },
           { key: 'category', label: 'Category' },
           { key: 'access', label: 'Access', kind: 'access' },
           { key: 'status', label: 'Status', kind: 'pill' },
@@ -196,15 +206,39 @@ function AdminLiveTv() {
                 </select>
               </div>
               <div className="field" style={{ gridColumn: '1 / -1' }}>
-                <label htmlFor="channel-description">Description</label>
-                <textarea
-                  id="channel-description"
-                  rows={3}
-                  value={editing.description}
-                  disabled={busy}
-                  onChange={(event) => setEditing({ ...editing, description: event.target.value })}
-                />
+                <RichTextEditor id="channel-description" label="Description" value={editing.description} disabled={busy} onChange={description => setEditing({ ...editing, description })} />
               </div>
+              {(['poster_url','thumbnail_url'] as const).map(field => <div className="field" key={field}>
+                <label htmlFor={field}>{field === 'poster_url' ? 'Channel poster' : 'Landscape thumbnail'}</label>
+                <AdminImagePreview url={editing[field]} label={field === 'poster_url' ? 'Current poster' : 'Current thumbnail'} />
+                <input id={field} value={editing[field]} disabled={busy} placeholder="Choose media or paste an image URL" onChange={e => setEditing({ ...editing, [field]: e.target.value })}/>
+                <UploadButton accept="image/*" label="Media" currentValue={editing[field]} parentBusy={busy} onDone={url => setEditing({ ...editing, [field]: url })}/>
+              </div>)}
+              <fieldset style={{ gridColumn: '1 / -1', border: 0, padding: 0, minWidth: 0 }}>
+                <legend className="mb-3 text-lg font-semibold">Live stream</legend>
+                <div className="field">
+                  <label htmlFor="channel-source">Source type</label>
+                  <select id="channel-source" value={editing.source_kind} disabled={busy} onChange={e => setEditing({ ...editing, source_kind: e.target.value as CForm['source_kind'] })}>
+                    <option value="hls">HLS playback URL</option><option value="rtmp">RTMP / RTMPS broadcast</option><option value="embed">Embedded player</option>
+                  </select>
+                </div>
+                {editing.source_kind === 'rtmp' && <div className="field mt-4">
+                  <label htmlFor="channel-ingest">Private ingest address</label>
+                  <input id="channel-ingest" type="password" autoComplete="off" spellCheck={false} value={editing.ingest_url} disabled={busy} onChange={e => setEditing({ ...editing, ingest_url: e.target.value })} placeholder="rtmps://your-stream-service/live/key"/>
+                  <small>Use this address in OBS or your encoder. It is visible only to administrators. Your streaming service must also provide the HLS output below.</small>
+                </div>}
+                {editing.source_kind === 'embed' ? <div className="field mt-4">
+                  <label htmlFor="channel-embed">Player URL</label>
+                  <input id="channel-embed" type="url" value={editing.embed_url} disabled={busy} onChange={e => setEditing({ ...editing, embed_url: e.target.value })} placeholder="https://iframe.viewmedia.tv?channel=030"/>
+                  <small>Paste the iframe src URL from Viewmedia, YouTube or Vimeo. Playback and sound controls come from that provider.</small>
+                </div> : <div className="field mt-4">
+                  <label htmlFor="channel-playback">HLS playback URL</label>
+                  <input id="channel-playback" type="url" value={editing.hls_url} disabled={busy} onChange={e => setEditing({ ...editing, hls_url: e.target.value })} placeholder="https://your-stream-service/live/playlist.m3u8"/>
+                  <small>Use the public HTTPS playback output. RTMP, RTSP and SRT inputs must be converted to HLS by your streaming service before viewers can watch.</small>
+                </div>}
+              </fieldset>
+              <div className="field"><label htmlFor="channel-comments">Live chat</label><select id="channel-comments" value={editing.comments_enabled ? '1' : '0'} disabled={busy} onChange={e => setEditing({ ...editing, comments_enabled: e.target.value === '1' })}><option value="1">Enabled</option><option value="0">Disabled</option></select></div>
+              <div className="field"><label htmlFor="channel-slow">Seconds between messages</label><input id="channel-slow" type="number" min={0} max={120} value={editing.slow_mode} disabled={busy} onChange={e => setEditing({ ...editing, slow_mode: Number(e.target.value) })}/></div>
             </div>
             {error && <div className="error mt-3" role="alert">{error}</div>}
             <div className="modal-actions border-t border-border pt-4">

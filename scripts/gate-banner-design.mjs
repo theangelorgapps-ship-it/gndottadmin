@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // Actual admin handlers + actual public loader on isolated SQLite; no network or production data.
 import assert from 'node:assert/strict'
+import { createRequire } from 'node:module'
+const require = createRequire(import.meta.url)
 import { readFileSync, existsSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -68,6 +70,7 @@ function load(relative) {
       if (!dependency) throw new Error(`Unknown test dependency ${id}`)
       return load(dependency)
     }
+    if (id === 'sanitize-html') return require(id)
     throw new Error(`Unexpected dependency ${id}`)
   }
   vm.runInNewContext(code, { module, exports: module.exports, require: localRequire, Request, Response, URL, console }, { filename: path })
@@ -84,6 +87,7 @@ const baseInput = { title: 'Featured sermon', type: 'movie', type_id: 1, banner_
 const bannerSnapshot = () => JSON.stringify({
   banners: database.prepare('SELECT * FROM banners ORDER BY id').all(),
   designs: database.prepare('SELECT * FROM banner_designs ORDER BY banner_id').all(),
+  order: database.prepare('SELECT * FROM banner_order ORDER BY banner_id').all(),
   sequence: database.prepare("SELECT * FROM sqlite_sequence WHERE name='banners'").all(),
 })
 
@@ -118,9 +122,11 @@ try {
   const created = await create({ title: '  Featured sermon  ' })
   assert.equal(created.ok, true)
   assert.ok(Number.isSafeInteger(created.id) && created.id > 0)
+  assert.equal((await admin.adminHeroContentOptions()).find(row => row.id === 1 && row.type === 'movie').thumbnail_url, '/media/title-1-wide.avif')
   let published = await website.loadConfiguredHeroes('home')
   assert.equal(published.length, 1)
   assert.equal(published[0].banner_id, created.id)
+  assert.equal(published[0].id, 1, 'TEXT-affinity banner IDs are normalized for catalogue matching')
   assert.equal(published[0].name, 'Public sermon')
   assert.equal(published[0].poster_url, baseInput.poster_url)
   assert.equal(published[0].thumbnail_url, baseInput.file_url)
@@ -168,7 +174,8 @@ try {
     INSERT INTO banners(title,type,type_id,banner_for,status) VALUES('Wrong source type','movie',4,'home',1);
     INSERT INTO banner_designs(banner_id,design_json) SELECT seq,'{"version":1,"devices":{}}' FROM sqlite_sequence WHERE name='banners';`)
   published = await website.loadConfiguredHeroes('home')
-  const expected = [free.id,paid.id,video.id,paidVideo.id,restricted.id,unknownAccess.id,restrictedVideo.id]
+  const noDesign = database.prepare("SELECT id FROM banners WHERE title='No design'").get().id
+  const expected = [free.id,paid.id,video.id,paidVideo.id,restricted.id,unknownAccess.id,restrictedVideo.id,noDesign]
   assert.deepEqual(Array.from(published, row => row.banner_id), expected)
   assert.equal(published.find(row => row.banner_id === video.id).name, 'Distinct video with same ID', 'Video ID collisions must not resolve to entertainments')
   assert.equal(published.find(row => row.banner_id === free.id).video_url_input, 'https://media.example.test/free-1.mp4')
@@ -184,6 +191,35 @@ try {
     const item = await create({ banner_for: placement })
     assert.deepEqual(Array.from(await website.loadConfiguredHeroes(placement), row => row.banner_id), [item.id])
   }
+
+  // Unset artwork follows title edits immediately; explicit overrides remain stable.
+  const following = await create({ banner_for: 'video', type: 'video', type_id: 1, file_url: '', poster_url: '', design: { version: 1, devices: {} } })
+  database.exec("UPDATE videos SET thumbnail_url='/media/current-wide.avif',poster_url='/media/current-poster.avif' WHERE id=1")
+  let followed = (await website.loadConfiguredHeroes('video')).find(row => row.banner_id === following.id)
+  assert.equal(followed.thumbnail_url, '/media/current-wide.avif')
+  assert.equal(followed.poster_url, '/media/current-poster.avif')
+  assert.equal((await website.loadConfiguredHeroes('home')).find(row => row.banner_id === video.id).thumbnail_url, baseInput.file_url)
+  const artwork = load('src/lib/banner-design.ts').heroArtwork
+  assert.equal(artwork('web', {}, { thumbnail_url: '/media/current-wide.avif' }), '/media/current-wide.avif')
+  assert.equal(artwork('phone', {}, { poster_url: '/media/current-poster.avif' }), '/media/current-poster.avif')
+  assert.equal(artwork('app', { poster_url: '/media/custom.avif' }, { poster_url: '/media/current-poster.avif' }), '/media/custom.avif')
+
+  // Reorder all rows in a placement, including hidden titles, with atomic writes.
+  const homeIds = (await admin.adminHeroBanners()).filter(row => row.banner_for === 'home').map(row => row.id).reverse()
+  await admin.adminReorderHeroBanners({ data: { placement: 'home', ids: homeIds } })
+  assert.deepEqual(Array.from(await website.loadConfiguredHeroes('home'), row => row.banner_id), homeIds.filter(id => expected.includes(id)))
+  const beforeOrder = bannerSnapshot()
+  for (const data of [{ placement: 'other', ids: homeIds }, { placement: 'home', ids: [] }, { placement: 'home', ids: [homeIds[0],homeIds[0]] }, { placement: 'home', ids: homeIds.slice(1) }, { placement: 'home', ids: [...homeIds,99999] }, { placement: 'home', ids: homeIds.map(String) }]) {
+    await assert.rejects(() => admin.adminReorderHeroBanners({ data }))
+    assert.equal(bannerSnapshot(), beforeOrder)
+  }
+  database.exec(`CREATE TRIGGER reject_banner_order BEFORE INSERT ON banner_order WHEN NEW.sort_order=2 BEGIN SELECT RAISE(ABORT,'forced order failure'); END;`)
+  await assert.rejects(() => admin.adminReorderHeroBanners({ data: { placement: 'home', ids: [...homeIds].reverse() } }), /forced order failure/)
+  assert.equal(bannerSnapshot(), beforeOrder)
+  database.exec('DROP TRIGGER reject_banner_order')
+  // Moving between placements appends instead of retaining a conflicting source rank.
+  await create({ id: following.id, banner_for: 'home', type: 'video', type_id: 1, file_url: '', poster_url: '' })
+  assert.equal((await website.loadConfiguredHeroes('home')).at(-1).banner_id, following.id)
 
   // Every invalid request must leave both tables and the next-ID sequence unchanged.
   const invalid = [
@@ -206,6 +242,8 @@ try {
     const before = bannerSnapshot()
     await assert.rejects(() => create({}), /Sign in required|Admin access required|read-only/)
     assert.equal(bannerSnapshot(), before)
+    await assert.rejects(() => admin.adminReorderHeroBanners({ data: { placement: 'home', ids: [...homeIds,following.id] } }), /Sign in required|Admin access required|read-only/)
+    assert.equal(bannerSnapshot(), before)
   }
   session = { uid: 3 }
   assert.ok((await admin.adminHeroBanners()).length > 0, 'Demo role retains read-only access')
@@ -221,8 +259,8 @@ try {
   assert.equal(database.prepare('SELECT file_url FROM genres WHERE id=?').get(category.id).file_url, '')
   await assert.rejects(() => admin.adminUpsertGenre({ data: { id: category.id, name: 'Invalid', file_url: 'javascript:alert(1)' } }))
   const listVideo = (await admin.adminListVideos()).find(row => row.id === 1)
-  assert.equal(listVideo.poster_url, '/media/video-1.avif')
-  assert.equal(listVideo.thumbnail_url, '/media/video-1-wide.avif')
+  assert.equal(listVideo.poster_url, '/media/current-poster.avif')
+  assert.equal(listVideo.thumbnail_url, '/media/current-wide.avif')
   const listTitle = (await admin.adminListContent({ data: 'movie' })).find(row => row.id === 1)
   assert.equal(listTitle.poster_url, '/media/title-1.avif', 'Title lists must supply the poster field rendered by the table')
   assert.equal(listTitle.thumbnail_url, '/media/title-1-wide.avif')

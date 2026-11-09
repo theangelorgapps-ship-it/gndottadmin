@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Upload, Save } from 'lucide-react'
 import { adminSaveHeroBanner } from '../lib/admin'
-import { HERO_DEVICES, defaultFrame, validateHeroDesign, type HeroDesign, type HeroDevice } from '../lib/banner-design'
+import { HERO_DEVICES, defaultFrame, heroArtwork, validateHeroDesign, type HeroDesign, type HeroDevice } from '../lib/banner-design'
 import { UploadDialog } from './UploadDialog'
 import { img } from './Poster'
 import '../banner-editor.css'
@@ -21,10 +21,15 @@ export function HeroBannerEditor({ row, contents, onClose, onSaved }: { row: any
     for (const key of HERO_DEVICES) saved.devices[key] ??= defaultFrame()
     return saved
   })
-  const [upload, setUpload] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('')
+  const [upload, setUpload] = useState<'device' | 'desktop' | 'phone' | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState('')
   const frame = design.devices[device] || defaultFrame()
-  const selected = contents.find(item => item.id === form.type_id && item.type === form.type)
-  const fallback = device === 'phone' || device === 'app' ? form.poster_url || selected?.poster_url || form.file_url : form.file_url || selected?.thumbnail_url || selected?.poster_url
+  const selected = contents.find(item => Number(item.id) === form.type_id && item.type === form.type)
+  const fallback = heroArtwork(device, form, selected)
+  const uploadValue = upload === 'desktop' ? heroArtwork('web', form, selected) : upload === 'phone' ? heroArtwork('phone', form, selected) : frame.image || fallback
+  function chooseTitle(id: number) {
+    const next = contents.find(item => Number(item.id) === id && item.type === form.type)
+    setForm(current => ({ ...current, type_id: id, title: !current.title || current.title === selected?.name ? next?.name || '' : current.title }))
+  }
   const updateFrame = (patch: Partial<typeof frame>) => setDesign(current => ({ version: 1, devices: { ...current.devices, [device]: { ...frame, ...patch } } }))
   useEffect(() => { setReady(true) }, [])
   useEffect(() => { if (ready) { const before = document.activeElement as HTMLElement; dialog.current?.showModal(); return () => { dialog.current?.close(); before?.focus() } } }, [ready])
@@ -48,12 +53,18 @@ export function HeroBannerEditor({ row, contents, onClose, onSaved }: { row: any
         </section>
         <section className="hero-editor-fields">
           <label>Banner name<input required maxLength={200} value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}/></label>
-          <div className="hero-field-pair"><label>Type<select value={form.type} onChange={e => setForm({ ...form, type: e.target.value, type_id: 0 })}>{Object.entries(types).map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select></label><label>Placement<select value={form.banner_for} onChange={e => setForm({ ...form, banner_for: e.target.value })}>{Object.entries(placements).map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select></label></div>
-          <label>Featured title<select required value={form.type_id || ''} onChange={e => setForm({ ...form, type_id: Number(e.target.value) })}><option value="">Choose a title</option>{contents.filter(item => item.type === form.type).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-          <label>Default website artwork<input value={form.file_url} onChange={e => setForm({ ...form, file_url: e.target.value })} placeholder="https://… or /media/…"/></label>
-          <label>Default phone artwork<input value={form.poster_url} onChange={e => setForm({ ...form, poster_url: e.target.value })} placeholder="Use title artwork"/></label>
+          <div className="hero-field-pair"><label>Type<select value={form.type} onChange={e => setForm({ ...form, type: e.target.value, type_id: 0, title: form.title === selected?.name ? '' : form.title })}>{Object.entries(types).map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select></label><label>Placement<select value={form.banner_for} onChange={e => setForm({ ...form, banner_for: e.target.value })}>{Object.entries(placements).map(([key,label]) => <option key={key} value={key}>{label}</option>)}</select></label></div>
+          <label>Featured title<select required value={form.type_id || ''} onChange={e => chooseTitle(Number(e.target.value))}><option value="">Choose a title</option>{contents.filter(item => item.type === form.type).map(item => <option key={item.id} value={item.id}>{item.name}{Number(item.status) !== 1 ? ' (unpublished)' : ''}</option>)}</select></label>
+          <p className="hero-artwork-help">Title artwork stays up to date automatically. Choose an override only when this banner needs different artwork.</p>
+          {selected && Number(selected.status) !== 1 && <p role="status">This title is unpublished. Its banner will appear when the title is published.</p>}
+          <fieldset><legend>Default artwork</legend>
+            <label>Website artwork override<div className="hero-image-control"><input value={form.file_url} onChange={e => setForm({ ...form, file_url: e.target.value })} placeholder="Follow title landscape artwork"/><button type="button" onClick={() => setUpload('desktop')}>Choose</button></div></label>
+            {form.file_url && <button type="button" onClick={() => setForm({ ...form, file_url: '' })}>Use title website artwork</button>}
+            <label>Phone artwork override<div className="hero-image-control"><input value={form.poster_url} onChange={e => setForm({ ...form, poster_url: e.target.value })} placeholder="Follow title poster artwork"/><button type="button" onClick={() => setUpload('phone')}>Choose</button></div></label>
+            {form.poster_url && <button type="button" onClick={() => setForm({ ...form, poster_url: '' })}>Use title phone artwork</button>}
+          </fieldset>
           <fieldset><legend>{device === 'web' ? 'Website' : device} layout</legend>
-            <label>Artwork override<div className="hero-image-control"><input value={frame.image || ''} onChange={e => updateFrame({ image: e.target.value })} placeholder="Use default artwork"/><button type="button" onClick={() => setUpload(true)}><Upload size={16}/>Upload</button></div></label>
+            <label>Artwork override<div className="hero-image-control"><input value={frame.image || ''} onChange={e => updateFrame({ image: e.target.value })} placeholder="Use default artwork"/><button type="button" onClick={() => setUpload('device')}><Upload size={16}/>Choose</button></div></label>
             <label>Horizontal focus · {frame.x}%<input aria-label="Horizontal image focus" type="range" min="0" max="100" value={frame.x} onChange={e => updateFrame({ x: Number(e.target.value) })}/></label>
             <label>Vertical focus · {frame.y}%<input aria-label="Vertical image focus" type="range" min="0" max="100" value={frame.y} onChange={e => updateFrame({ y: Number(e.target.value) })}/></label>
             <div className="hero-field-pair"><label>Image fit<select value={frame.fit} onChange={e => updateFrame({ fit: e.target.value as any })}><option value="cover">Fill frame</option><option value="contain">Fit whole image</option></select></label><label>Text alignment<select value={frame.align} onChange={e => updateFrame({ align: e.target.value as any })}><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></select></label></div>
@@ -64,6 +75,11 @@ export function HeroBannerEditor({ row, contents, onClose, onSaved }: { row: any
       </div>
       <footer>{error && <p role="alert">{error}</p>}<button type="button" onClick={onClose} disabled={busy}>Cancel</button><button type="submit" className="hero-editor-save" disabled={busy || !form.type_id}><Save size={16}/>{busy ? 'Saving…' : 'Save hero'}</button></footer>
     </form>
-    <UploadDialog open={upload} onClose={() => setUpload(false)} onUploaded={url => { updateFrame({ image: url }); setUpload(false) }} accept="image/*" title="Upload hero artwork"/>
+    <UploadDialog open={upload !== null} onClose={() => setUpload(null)} currentValue={uploadValue} onUploaded={url => {
+      if (upload === 'desktop') setForm(current => ({ ...current, file_url: url }))
+      else if (upload === 'phone') setForm(current => ({ ...current, poster_url: url }))
+      else updateFrame({ image: url })
+      setUpload(null)
+    }} accept="image/*" title="Choose hero artwork"/>
   </dialog>, document.body)
 }

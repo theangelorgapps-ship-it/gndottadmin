@@ -8,6 +8,7 @@ import { useToast } from '../lib/toast'
 import { AdminDataTable } from './AdminDataTable'
 import { AdminImagePreview } from './Poster'
 import { UploadDialog } from './UploadDialog'
+import { RichTextEditor } from './RichTextEditor'
 import { orderPersonalities } from './CrudTable'
 
 const TYPE_LABEL = { movie: 'Sermon', tvshow: 'Show', teaching: 'Teaching' } as const
@@ -50,6 +51,7 @@ function ChoiceGroup({ label, children }: { label: string; children: ReactNode }
 }
 
 type UploadButtonProps = {
+  currentValue?: string | null
   onDone: (url: string) => void
   accept?: string
   label: string
@@ -57,12 +59,12 @@ type UploadButtonProps = {
   onBusyChange?: (busy: boolean) => void
 }
 
-export function UploadButton({ onDone, accept, label, parentBusy = false, onBusyChange }: UploadButtonProps) {
+export function UploadButton({ onDone, accept, label, currentValue, parentBusy = false, onBusyChange }: UploadButtonProps) {
   const [open, setOpen] = useState(false)
   function close() { setOpen(false); onBusyChange?.(false) }
   return <>
-    <button type="button" className="btn btn-dark btn-sm upload-btn" disabled={parentBusy || open} onClick={() => { setOpen(true); onBusyChange?.(true) }}>Upload {label.toLowerCase()}</button>
-    <UploadDialog open={open} onClose={close} onUploaded={(url) => { onDone(url); close() }} accept={accept ?? 'image/*'} title={`Upload ${label.toLowerCase()}`} />
+    <button type="button" className="btn btn-dark btn-sm upload-btn" disabled={parentBusy || open} onClick={() => { setOpen(true); onBusyChange?.(true) }}>Choose {label.toLowerCase()}</button>
+    <UploadDialog open={open} currentValue={currentValue} onClose={close} onUploaded={(url) => { onDone(url); close() }} accept={accept ?? 'image/*'} title={`Choose ${label.toLowerCase()}`} />
   </>
 }
 
@@ -304,7 +306,7 @@ export function ContentAdmin({ items, type, title }: { items: any[]; type: 'movi
                   <input id="content-short-description" value={editing.short_description ?? ''} disabled={busy} onChange={(event) => set({ short_description: event.target.value })} />
                 </Field>
                 <Field id="content-description" label="Description" span>
-                  <textarea id="content-description" rows={3} value={editing.description ?? ''} disabled={busy} onChange={(event) => set({ description: event.target.value })} />
+                  <RichTextEditor id="content-description" label="Description" value={editing.description ?? ''} disabled={busy} onChange={html => set({ description: html })} />
                 </Field>
                 <Field id="content-release-date" label="Release date">
                   <input id="content-release-date" type="date" value={editing.release_date ? String(editing.release_date).slice(0, 10) : ''} disabled={busy} onChange={(event) => set({ release_date: event.target.value })} />
@@ -368,7 +370,7 @@ export function ContentAdmin({ items, type, title }: { items: any[]; type: 'movi
                   <div className="img-field-col">
                     <div className="img-field">
                       <input id="content-poster" value={editing.poster_url ?? ''} disabled={busy} onChange={(event) => set({ poster_url: event.target.value })} />
-                      <UploadButton label="Poster" parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(url) => set({ poster_url: url })} />
+                      <UploadButton label="Poster" currentValue={editing.poster_url} parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(url) => set({ poster_url: url })} />
                     </div>
                     <AdminImagePreview url={editing.poster_url} label="Poster preview" className="img-preview-lg" />
                   </div>
@@ -377,7 +379,7 @@ export function ContentAdmin({ items, type, title }: { items: any[]; type: 'movi
                   <div className="img-field-col">
                     <div className="img-field">
                       <input id="content-thumbnail" value={editing.thumbnail_url ?? ''} disabled={busy} onChange={(event) => set({ thumbnail_url: event.target.value })} />
-                      <UploadButton label="Thumbnail" parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(url) => set({ thumbnail_url: url })} />
+                      <UploadButton label="Thumbnail" currentValue={editing.thumbnail_url} parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(url) => set({ thumbnail_url: url })} />
                     </div>
                     <AdminImagePreview url={editing.thumbnail_url} label="Thumbnail preview" className="img-preview-lg" />
                   </div>
@@ -394,7 +396,7 @@ export function ContentAdmin({ items, type, title }: { items: any[]; type: 'movi
                 <Field id="content-subtitle-file" label="Subtitle file (.vtt/.srt)" span>
                   <div className="img-field">
                     <input id="content-subtitle-file" value={editing.subtitle_file ?? ''} disabled={busy} onChange={(event) => set({ subtitle_file: event.target.value })} />
-                    <UploadButton label="Subtitle" accept=".vtt,.srt" parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(url) => set({ subtitle_file: url })} />
+                    <UploadButton label="Subtitle" currentValue={editing.subtitle_file} accept=".vtt,.srt" parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(url) => set({ subtitle_file: url })} />
                   </div>
                 </Field>
               </div>
@@ -450,7 +452,7 @@ export function ContentAdmin({ items, type, title }: { items: any[]; type: 'movi
                   <div className="img-field-col">
                     <div className="img-field">
                       <input id="content-seo-image" value={editing.seo_image ?? ''} disabled={busy} onChange={(event) => set({ seo_image: event.target.value })} />
-                      <UploadButton label="SEO image" parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(url) => set({ seo_image: url })} />
+                      <UploadButton label="SEO image" currentValue={editing.seo_image} parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(url) => set({ seo_image: url })} />
                     </div>
                     <AdminImagePreview url={editing.seo_image} label="SEO image preview" className="img-preview-lg" />
                   </div>

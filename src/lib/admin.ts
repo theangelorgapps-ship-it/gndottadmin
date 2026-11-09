@@ -1,3 +1,5 @@
+import { liveUrl, liveEmbedUrl, resolveLiveSource } from './live-sources'
+import { sanitizeContentHtml, RICH_TEXT_FIELDS } from './rich-text'
 import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 import { env } from 'cloudflare:workers'
 import { getRequest } from '@tanstack/react-start/server'
@@ -304,6 +306,7 @@ export const adminUpsertContent = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const admin = await requireAdmin()
     data = normalizeBunnyFields(data)
+    if ('description' in data) data.description = sanitizeContentHtml(data.description)
     if (!data.name?.trim()) throw new Error('Name is required.')
     if (!['movie', 'tvshow', 'teaching'].includes(data.type)) throw new Error('Type must be movie, tvshow or teaching.')
     for (const supplied of [data.cast_ids, data.director_ids]) {
@@ -413,6 +416,7 @@ export const adminUpsertVideo = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const admin = await requireAdmin()
     data = normalizeBunnyFields(data)
+    if ('description' in data) data.description = sanitizeContentHtml(data.description)
     if (!data.name?.trim()) throw new Error('Name is required.')
     const VCOLS = ['name', 'description', 'duration', 'release_date', 'status', 'poster_url', 'thumbnail_url',
       'trailer_url', 'video_url_input', 'video_upload_type', 'bunny_video_url', 'access', 'price',
@@ -466,36 +470,56 @@ export const adminDeleteVideo = createServerFn({ method: 'POST' })
 
 export const adminListChannels = createServerFn({ method: 'GET' }).handler(async () => {
   await requireAdmin()
-  const channels = await all(
-    `SELECT c.id, c.name, c.access, c.status, cat.name AS category
-     FROM live_tv_channel c LEFT JOIN live_tv_category cat ON cat.id = c.category_id
-     WHERE c.deleted_at IS NULL ORDER BY c.id DESC`,
-  )
-  const categories = await all(
-    `SELECT id, name, status FROM live_tv_category ORDER BY name`,
-  ).catch(() => [])
-  return { channels, categories }
+  const channels = await all(`SELECT c.id,c.name,c.category_id,c.access,c.description,c.status,c.poster_url,c.thumbnail_url,
+    cat.name AS category,s.source_kind,s.hls_url,s.ingest_url,s.embed_url,
+    COALESCE(s.comments_enabled,1) AS comments_enabled,COALESCE(s.slow_mode,5) AS slow_mode
+    FROM live_tv_channel c LEFT JOIN live_tv_category cat ON cat.id=c.category_id
+    LEFT JOIN live_channel_settings s ON s.channel_id=c.id
+    WHERE c.deleted_at IS NULL ORDER BY c.id DESC`)
+  const mappings = await all(`SELECT tv_channel_id,stream_type,server_url,server_url1 FROM live_tv_stream_content_mapping WHERE deleted_at IS NULL ORDER BY id DESC`)
+  const categories = await all(`SELECT id,name,status FROM live_tv_category WHERE deleted_at IS NULL ORDER BY name`)
+  return { channels: channels.map(c => ({ ...c, source_kind: c.source_kind || 'hls',
+    hls_url: c.hls_url || (c.source_kind === 'embed' ? '' : resolveLiveSource(null,mappings.filter(m => m.tv_channel_id === c.id))) || '' })), categories }
 })
 
+type ChannelInput = { id?: number; name: string; category_id?: number; access: string; description: string; status: number;
+  poster_url: string; thumbnail_url: string; source_kind: 'hls'|'rtmp'|'embed'; hls_url: string; ingest_url: string; embed_url: string;
+  comments_enabled: boolean; slow_mode: number }
 export const adminUpsertChannel = createServerFn({ method: 'POST' })
-  .validator((d: { id?: number; name: string; category_id?: number; access?: string; description?: string; status?: number }) => d)
+  .validator((data: ChannelInput) => {
+    if (!data || typeof data.name !== 'string' || !data.name.trim() || data.name.length > 200) throw new Error('Enter a channel name of up to 200 characters.')
+    if (data.id !== undefined) positiveId(data.id)
+    if (data.category_id !== undefined) positiveId(data.category_id)
+    if (!['free','paid'].includes(data.access) || ![0,1].includes(data.status) || !['hls','rtmp','embed'].includes(data.source_kind)) throw new Error('Choose valid access, status and stream options.')
+    if (typeof data.comments_enabled !== 'boolean' || !Number.isInteger(data.slow_mode) || data.slow_mode < 0 || data.slow_mode > 120) throw new Error('Choose a comment delay from 0 to 120 seconds.')
+    if (typeof data.description !== 'string' || data.description.length > 30000) throw new Error('Description is too long.')
+    for (const key of ['hls_url','ingest_url','embed_url'] as const) if (typeof data[key] !== 'string') throw new Error('Enter valid stream addresses.')
+    const hls = data.source_kind === 'embed' ? null : liveUrl(data.hls_url)
+    const ingest = data.source_kind === 'rtmp' ? liveUrl(data.ingest_url,'rtmp') : null
+    const embed = data.source_kind === 'embed' ? liveEmbedUrl(data.embed_url) : null
+    if (data.source_kind === 'embed' && !embed) throw new Error('Use a Viewmedia channel, YouTube embed or Vimeo player HTTPS URL.')
+    if (data.source_kind !== 'embed' && (data.hls_url.trim() || data.status === 1) && !hls) throw new Error('Add a public HTTPS HLS playback URL. Raw RTMP cannot play in browsers.')
+    if (data.source_kind === 'rtmp' && (!ingest || !hls)) throw new Error('Add the service’s RTMP/RTMPS ingest address and HTTPS HLS playback output.')
+    return { ...data, name: data.name.trim(), description: sanitizeContentHtml(data.description),
+      poster_url: safeArtworkUrl(data.poster_url), thumbnail_url: safeArtworkUrl(data.thumbnail_url),
+      hls_url: hls, ingest_url: ingest, embed_url: embed }
+  })
   .handler(async ({ data }) => {
-    await requireAdmin()
-    if (!data.name?.trim()) throw new Error('Name is required.')
-    if (data.id) {
-      await run(
-        `UPDATE live_tv_channel SET name=?, category_id=?, access=?, description=?, status=? WHERE id=? AND deleted_at IS NULL`,
-        data.name.trim(), data.category_id ?? null, data.access ?? 'free',
-        data.description ?? null, data.status ?? 1, data.id,
-      )
-      return { ok: true, id: data.id }
-    }
-    const res = await run(
-      `INSERT INTO live_tv_channel (name, category_id, access, description, status) VALUES (?,?,?,?,?)`,
-      data.name.trim(), data.category_id ?? null, data.access ?? 'free',
-      data.description ?? null, data.status ?? 1,
-    )
-    return { ok: true, id: (res as any)?.meta?.last_row_id ?? null }
+    const user = await requireAdmin()
+    if (data.id && !await first('SELECT id FROM live_tv_channel WHERE id=? AND deleted_at IS NULL',data.id)) throw new Error('Channel not found.')
+    if (data.category_id && !await first('SELECT id FROM live_tv_category WHERE id=? AND deleted_at IS NULL',data.category_id)) throw new Error('Category not found.')
+    const db = (env as any).DB
+    const values = [data.name,data.category_id ?? null,data.access,data.description,data.status,data.poster_url,data.thumbnail_url,user.uid]
+    const channel = data.id
+      ? db.prepare(`UPDATE live_tv_channel SET name=?,category_id=?,access=?,description=?,status=?,poster_url=?,thumbnail_url=?,updated_by=?,updated_at=datetime('now') WHERE id=? AND deleted_at IS NULL RETURNING id`).bind(...values,data.id)
+      : db.prepare(`INSERT INTO live_tv_channel(name,category_id,access,description,status,poster_url,thumbnail_url,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,datetime('now'),datetime('now')) RETURNING id`).bind(...values)
+    // D1 batch is transactional; last_insert_rowid is scoped to this batch for new channels.
+    const settings = db.prepare(`INSERT INTO live_channel_settings(channel_id,source_kind,hls_url,ingest_url,embed_url,comments_enabled,slow_mode,updated_by)
+      VALUES(${data.id ? '?' : 'last_insert_rowid()'},?,?,?,?,?,?,?) ON CONFLICT(channel_id) DO UPDATE SET source_kind=excluded.source_kind,hls_url=excluded.hls_url,
+      ingest_url=excluded.ingest_url,embed_url=excluded.embed_url,comments_enabled=excluded.comments_enabled,slow_mode=excluded.slow_mode,updated_by=excluded.updated_by,updated_at=datetime('now')`)
+      .bind(...(data.id ? [data.id] : []),data.source_kind,data.hls_url,data.ingest_url,data.embed_url,data.comments_enabled?1:0,data.slow_mode,user.uid)
+    const results = await db.batch([channel,settings])
+    return { ok: true, id: data.id ?? results[0]?.results?.[0]?.id }
   })
 
 export const adminDeleteChannel = createServerFn({ method: 'POST' })
@@ -856,6 +880,7 @@ export const adminUpsertRow = createServerFn({ method: 'POST' })
       if (f.startsWith('social_')) continue
       if (f in data.values) {
         let v = data.values[f]
+        if (RICH_TEXT_FIELDS[data.entity]?.includes(f)) v = sanitizeContentHtml(v)
         if (typeof v === 'string') v = v.trim()
         if (v === '') v = null
         vals[f] = v
@@ -1062,10 +1087,34 @@ export const adminBunnyListVideos = createServerFn({ method: 'GET' }).handler(as
 })
 
 // Responsive hero authoring: a versioned device contract shared with the public API.
+export const adminHeroContentOptions = createServerFn({ method: 'GET' }).handler(async () => {
+  await requireAdmin()
+  return all(`SELECT id, name, type, poster_url, thumbnail_url, status FROM entertainments WHERE deleted_at IS NULL AND type IN ('movie','tvshow','teaching')
+    UNION ALL SELECT id, name, 'video' AS type, poster_url, thumbnail_url, status FROM videos WHERE deleted_at IS NULL ORDER BY name`)
+})
 export const adminHeroBanners = createServerFn({ method: 'GET' }).handler(async () => {
   await requireAdmin()
-  return all(`SELECT b.*, d.design_json FROM banners b LEFT JOIN banner_designs d ON d.banner_id = b.id WHERE b.deleted_at IS NULL ORDER BY b.id`)
+  return all(`SELECT b.*, d.design_json, COALESCE(o.sort_order,b.id) AS sort_order,
+      COALESCE(e.poster_url,v.poster_url) AS title_poster_url, COALESCE(e.thumbnail_url,v.thumbnail_url) AS title_thumbnail_url,
+      COALESCE(e.name,v.name) AS title_name, COALESCE(e.status,v.status,0) AS title_status
+    FROM banners b LEFT JOIN banner_designs d ON d.banner_id = b.id LEFT JOIN banner_order o ON o.banner_id=b.id
+    LEFT JOIN entertainments e ON b.type!='video' AND e.id=b.type_id AND e.type=b.type AND e.deleted_at IS NULL
+    LEFT JOIN videos v ON b.type='video' AND v.id=b.type_id AND v.deleted_at IS NULL
+    WHERE b.deleted_at IS NULL ORDER BY b.banner_for, COALESCE(o.sort_order,b.id), b.id`)
 })
+export const adminReorderHeroBanners = createServerFn({ method: 'POST' })
+  .validator((input: { placement: string; ids: number[] }) => input)
+  .handler(async ({ data }) => {
+    await requireAdmin()
+    if (!['home', 'movie', 'tv_show', 'teaching', 'video'].includes(data.placement)) throw new Error('Choose a valid placement.')
+    if (!Array.isArray(data.ids) || data.ids.length === 0 || data.ids.length > 2000 || new Set(data.ids).size !== data.ids.length) throw new Error('Choose a complete banner order.')
+    data.ids.forEach(positiveId)
+    const current = await all<{ id: number }>(`SELECT id FROM banners WHERE deleted_at IS NULL AND banner_for=?`, data.placement)
+    if (current.length !== data.ids.length || current.some(row => !data.ids.includes(row.id))) throw new Error('The banners have changed. Refresh and try again.')
+    const db = (env as any).DB
+    await db.batch(data.ids.map((id, index) => db.prepare(`INSERT INTO banner_order (banner_id,sort_order) VALUES (?,?) ON CONFLICT(banner_id) DO UPDATE SET sort_order=excluded.sort_order`).bind(id,index + 1)))
+    return { ok: true }
+  })
 export const adminSaveHeroBanner = createServerFn({ method: 'POST' })
   .validator((input: { id?: number; title: string; type: string; type_id: number; banner_for: string; status: number; file_url: string; poster_url: string; design: unknown }) => input)
   .handler(async ({ data }) => {
@@ -1081,19 +1130,35 @@ export const adminSaveHeroBanner = createServerFn({ method: 'POST' })
       : await first(`SELECT id FROM entertainments WHERE id = ? AND type = ? AND deleted_at IS NULL`, data.type_id, data.type)
     if (!target) throw new Error('Choose an existing title of this type.')
     const desktop = safeArtworkUrl(data.file_url), phone = safeArtworkUrl(data.poster_url)
+    let previous: { banner_for: string } | null = null
     if (data.id !== undefined) {
       positiveId(data.id)
-      if (!await first(`SELECT id FROM banners WHERE id = ? AND deleted_at IS NULL`, data.id)) throw new Error('Banner not found.')
+      previous = await first(`SELECT banner_for FROM banners WHERE id = ? AND deleted_at IS NULL`, data.id)
+      if (!previous) throw new Error('Banner not found.')
     }
     const db = (env as any).DB
     const values = [data.title.trim(), data.type, data.type_id, data.banner_for, data.status, desktop, phone]
-    const results = await db.batch([
+    const statements = [
       data.id
         ? db.prepare(`UPDATE banners SET title=?, type=?, type_id=?, banner_for=?, status=?, file_url=?, poster_url=?, updated_at=datetime('now') WHERE id=? AND deleted_at IS NULL`).bind(...values, data.id)
         : db.prepare(`INSERT INTO banners (title,type,type_id,banner_for,status,file_url,poster_url,created_at,updated_at) VALUES (?,?,?,?,?,?,?,datetime('now'),datetime('now'))`).bind(...values),
       data.id
         ? db.prepare(`INSERT INTO banner_designs (banner_id,design_json) VALUES (?,?) ON CONFLICT(banner_id) DO UPDATE SET design_json=excluded.design_json, updated_at=datetime('now')`).bind(data.id, JSON.stringify(design))
         : db.prepare(`INSERT INTO banner_designs (banner_id,design_json) SELECT seq,? FROM sqlite_sequence WHERE name='banners'`).bind(JSON.stringify(design)),
-    ])
+    ]
+    // Keep an edited hero in place; a new hero or one moved to another placement is appended.
+    if (!data.id) {
+      // Read the new ID inside this batch, after the banner INSERT.
+      statements.push(db.prepare(`INSERT INTO banner_order (banner_id,sort_order)
+        SELECT (SELECT seq FROM sqlite_sequence WHERE name='banners'),COALESCE(MAX(COALESCE(o.sort_order,b.id)),0)+1
+        FROM banners b LEFT JOIN banner_order o ON o.banner_id=b.id
+        WHERE b.banner_for=? AND b.deleted_at IS NULL AND b.id!=(SELECT seq FROM sqlite_sequence WHERE name='banners')`).bind(data.banner_for))
+    } else if (previous?.banner_for !== data.banner_for) {
+      statements.push(db.prepare(`INSERT INTO banner_order (banner_id,sort_order)
+        SELECT ?, COALESCE(MAX(COALESCE(o.sort_order,b.id)),0)+1 FROM banners b LEFT JOIN banner_order o ON o.banner_id=b.id
+        WHERE b.banner_for=? AND b.deleted_at IS NULL AND b.id!=?
+        ON CONFLICT(banner_id) DO UPDATE SET sort_order=excluded.sort_order`).bind(data.id, data.banner_for, data.id))
+    }
+    const results = await db.batch(statements)
     return { ok: true, id: data.id ?? results[0].meta.last_row_id }
   })

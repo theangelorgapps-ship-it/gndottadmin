@@ -6,6 +6,7 @@ import { useToast } from '../../lib/toast'
 import { AdminDataTable } from '../../components/AdminDataTable'
 import { AdminImagePreview } from '../../components/Poster'
 import { UploadButton, BunnyUploadButton } from '../../components/admin-content'
+import { RichTextEditor } from '../../components/RichTextEditor'
 
 export const Route = createFileRoute('/admin/videos')({
   loader: async () => await adminListVideos(),
@@ -191,7 +192,7 @@ function AdminVideos() {
                 <input id="video-name" data-initial-focus value={editing.name} disabled={busy} aria-required="true" onChange={(event) => set({ name: event.target.value })} />
               </Field>
               <Field id="video-description" label="Description" span>
-                <textarea id="video-description" rows={3} value={editing.description} disabled={busy} onChange={(event) => set({ description: event.target.value })} />
+                <RichTextEditor id="video-description" label="Description" value={editing.description ?? ''} disabled={busy} onChange={html => set({ description: html })} />
               </Field>
               <Field id="video-duration" label="Duration">
                 <input id="video-duration" value={editing.duration} disabled={busy} onChange={(event) => set({ duration: event.target.value })} />
@@ -227,11 +228,11 @@ function AdminVideos() {
                 <input id="video-external" value={editing.video_url_input ?? ''} disabled={busy} onChange={(event) => set({ video_url_input: event.target.value })} />
               </Field>
               <Field id="video-poster" label="Poster URL">
-                <div className="img-field"><input id="video-poster" value={editing.poster_url ?? ''} disabled={busy} onChange={(event) => set({ poster_url: event.target.value })} /><UploadButton label="Poster" parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(url) => set({ poster_url: url })} /></div>
+                <div className="img-field"><input id="video-poster" value={editing.poster_url ?? ''} disabled={busy} onChange={(event) => set({ poster_url: event.target.value })} /><UploadButton label="Poster" currentValue={editing.poster_url} parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(url) => set({ poster_url: url })} /></div>
                 <AdminImagePreview url={editing.poster_url} label="Poster preview" className="img-preview-lg" />
               </Field>
               <Field id="video-thumbnail" label="Thumbnail URL">
-                <div className="img-field"><input id="video-thumbnail" value={editing.thumbnail_url ?? ''} disabled={busy} onChange={(event) => set({ thumbnail_url: event.target.value })} /><UploadButton label="Thumbnail" parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(url) => set({ thumbnail_url: url })} /></div>
+                <div className="img-field"><input id="video-thumbnail" value={editing.thumbnail_url ?? ''} disabled={busy} onChange={(event) => set({ thumbnail_url: event.target.value })} /><UploadButton label="Thumbnail" currentValue={editing.thumbnail_url} parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(url) => set({ thumbnail_url: url })} /></div>
                 <AdminImagePreview url={editing.thumbnail_url} label="Thumbnail preview" className="img-preview-lg" />
               </Field>
               <Field id="video-subtitles" label="Subtitles">
@@ -244,7 +245,7 @@ function AdminVideos() {
                 <input id="video-subtitle-language" value={editing.subtitle_language ?? ''} disabled={busy} onChange={(event) => set({ subtitle_language: event.target.value })} />
               </Field>
               <Field id="video-subtitle-file" label="Subtitle file" span>
-                <div className="img-field"><input id="video-subtitle-file" value={editing.subtitle_file ?? ''} disabled={busy} onChange={(event) => set({ subtitle_file: event.target.value })} /><UploadButton label="Subtitle" accept=".vtt,.srt" parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(url) => set({ subtitle_file: url })} /></div>
+                <div className="img-field"><input id="video-subtitle-file" value={editing.subtitle_file ?? ''} disabled={busy} onChange={(event) => set({ subtitle_file: event.target.value })} /><UploadButton label="Subtitle" currentValue={editing.subtitle_file} accept=".vtt,.srt" parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(url) => set({ subtitle_file: url })} /></div>
               </Field>
               <Field id="video-meta-title" label="Meta title (SEO)" span>
                 <input id="video-meta-title" value={editing.meta_title ?? ''} disabled={busy} onChange={(event) => set({ meta_title: event.target.value })} />

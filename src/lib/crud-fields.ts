@@ -1,7 +1,7 @@
 export type Field = {
   key: string
   label: string
-  type?: 'text' | 'textarea' | 'number' | 'select' | 'toggle' | 'image' | 'date'
+  type?: 'text' | 'textarea' | 'richtext' | 'number' | 'select' | 'toggle' | 'image' | 'date'
   options?: { value: string | number; label: string; parentValue?: string | number }[]
   dependsOn?: string
   required?: boolean

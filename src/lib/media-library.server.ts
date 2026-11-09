@@ -44,6 +44,7 @@ export async function listMediaLibrary(value?: MediaFilters) {
     const data = validFilters(value)
     await requireAdmin()
     const clauses: string[] = []; const params: any[] = []
+    if (data.kind) { clauses.push('kind=?'); params.push(data.kind) }
     if (data.folder) { clauses.push('folder=?'); params.push(data.folder) }
     if (data.from) { clauses.push('uploaded >= ?'); params.push(data.from + 'T00:00:00.000Z') }
     if (data.to) { clauses.push('uploaded < ?'); params.push(new Date(Date.parse(data.to) + 86400000).toISOString()) }

@@ -162,6 +162,6 @@ function Page() {
       </article></li>)}
     </ul>
     {data.total > 48 && <nav className="media-pagination" aria-label="Media pages"><button type="button" className="media-secondary" disabled={!filters.offset || loading} onClick={() => change({ offset: Math.max(0, (filters.offset ?? 0) - 48) })}>Previous</button><span>Page {Math.floor((filters.offset ?? 0) / 48) + 1} of {Math.ceil(data.total / 48)}</span><button type="button" className="media-secondary" disabled={(filters.offset ?? 0) + 48 >= data.total || loading} onClick={() => change({ offset: (filters.offset ?? 0) + 48 })}>Next</button></nav>}
-    <UploadDialog open={uploadOpen} onClose={() => setUploadOpen(false)} onUploaded={() => { setUploadOpen(false); void refresh() }} title="Add to your media library"/>
+    <UploadDialog open={uploadOpen} defaultTab="upload" onClose={() => setUploadOpen(false)} onUploaded={() => { setUploadOpen(false); void refresh() }} title="Add to your media library"/>
   </div>
 }

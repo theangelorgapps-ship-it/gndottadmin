@@ -27,7 +27,7 @@ function Page() {
         { key: 'name', label: 'Name', required: true },
         { key: 'slug', label: 'Slug', placeholder: 'privacy-policy' },
         { key: 'status', label: 'Status', type: 'toggle' },
-        { key: 'description', label: 'Content (HTML allowed)', type: 'textarea' },
+        { key: 'description', label: 'Content', type: 'richtext' },
       ]}
     />
   )
