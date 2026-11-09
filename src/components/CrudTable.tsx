@@ -4,11 +4,22 @@ import { adminGetRow, adminUpsertRow, adminDeleteRow } from '../lib/admin'
 import { useConfirm } from '../lib/confirm'
 import { useToast } from '../lib/toast'
 import { AdminDataTable, type DataCol } from './AdminDataTable'
-import { img } from './Poster'
+import { AdminImagePreview } from './Poster'
+import { UploadDialog } from './UploadDialog'
 import { fieldOptions, changeField, type Field } from '../lib/crud-fields'
 export type { Field } from '../lib/crud-fields'
 
 export type CrudCol = DataCol
+
+export function orderPersonalities<T extends { name?: string; designation?: string }>(people: T[]): T[] {
+  function rank(person: T) {
+    const normalized = `${person.name ?? ''} ${person.designation ?? ''}`.normalize('NFKD').toLowerCase().replace(/[^a-z0-9 ]/g, '')
+    if (/\braah\b/.test(normalized) || /\buebert angel\b/.test(normalized)) return 0
+    if (/\bneviah\b/.test(normalized) || /\bbebe angel\b/.test(normalized)) return 1
+    return 2
+  }
+  return [...people].sort((left, right) => rank(left) - rank(right) || String(left.name ?? '').localeCompare(String(right.name ?? '')))
+}
 
 export function CrudTable({
   title,
@@ -62,32 +73,16 @@ export function CrudTable({
     }
   }, [open])
 
-  async function uploadFile(fieldKey: string, file?: File | null) {
-    if (!file) return
-    setUploading(fieldKey)
-    setError(null)
-    try {
-      const form = new FormData()
-      form.append('file', file)
-      const res = await fetch('/api/upload', { method: 'POST', body: form })
-      const data = await res.json().catch(() => null) as { url?: string; error?: string } | null
-      if (!res.ok || !data?.url) throw new Error(data?.error ?? 'Upload failed')
-      setEditing((current: any) => current ? { ...current, [fieldKey]: data.url } : current)
-      notify({ title: 'Upload complete', description: file.name, variant: 'success' })
-    } catch (e: any) {
-      setError(e?.message ?? 'Upload failed.')
-      notify({ title: 'Upload failed', description: e?.message ?? 'The file could not be uploaded.', variant: 'destructive' })
-    } finally {
-      setUploading((current) => current === fieldKey ? null : current)
-    }
-  }
-
   async function openEdit(id: number) {
     setBusy(true)
     setError(null)
     try {
       const row = await adminGetRow({ data: { entity, id } })
-      setEditing(row)
+      const values = { ...(row as Record<string, any>) }
+      for (const field of fields) {
+        if (field.type === 'date' && values[field.key]) values[field.key] = String(values[field.key]).slice(0, 10)
+      }
+      setEditing(values)
       setOpen(true)
     } catch (e: any) {
       setError(e?.message ?? 'Failed to load record.')
@@ -99,7 +94,7 @@ export function CrudTable({
 
   function openAdd() {
     const blank: Record<string, any> = {}
-    for (const field of fields) blank[field.key] = field.type === 'toggle' ? 1 : ''
+    for (const field of fields) blank[field.key] = field.type === 'toggle' ? 1 : field.key === 'access' ? 'free' : ''
     setError(null)
     setEditing(blank)
     setOpen(true)
@@ -121,7 +116,11 @@ export function CrudTable({
       for (const field of fields) {
         let value = editing[field.key]
         if (field.required && (value == null || String(value).trim() === '')) throw new Error(`${field.label} is required.`)
-        if (field.type === 'number') value = value === '' || value == null ? null : Number(value)
+        if (field.type === 'number') {
+          value = value === '' || value == null ? null : Number(value)
+          if (value !== null && !Number.isFinite(value)) throw new Error(`${field.label} must be a number.`)
+        }
+        if (field.type === 'select' && value != null && value !== '' && !fieldOptions(field, editing).some(option => String(option.value) === String(value))) throw new Error(`Choose a valid ${field.label.toLowerCase()}.`)
         if (field.type === 'toggle') value = value ? 1 : 0
         values[field.key] = value
       }
@@ -171,7 +170,7 @@ export function CrudTable({
       </div>
       {error && !open && <div className="error mb-3" role="alert">{error}</div>}
       <AdminDataTable
-        rows={rows}
+        rows={entity === 'actors' ? orderPersonalities(rows) : rows}
         columns={columns}
         busy={busy}
         searchable={['name', 'title', 'label']}
@@ -275,29 +274,13 @@ export function CrudTable({
                             className="btn btn-dark btn-sm upload-btn"
                             disabled={isBusy}
                             aria-busy={uploading === field.key}
-                            onClick={() => document.getElementById(`${inputId}-file`)?.click()}
+                            onClick={() => setUploading(field.key)}
                           >
                             {uploading === field.key ? 'Uploading…' : 'Upload'}
                           </button>
-                          <input
-                            id={`${inputId}-file`}
-                            type="file"
-                            accept="image/*"
-                            hidden
-                            disabled={isBusy}
-                            aria-label={`Upload ${field.label}`}
-                            onChange={async (event) => {
-                              const input = event.currentTarget
-                              const file = input.files?.[0]
-                              try {
-                                await uploadFile(field.key, file)
-                              } finally {
-                                input.value = ''
-                              }
-                            }}
-                          />
+
                         </span>
-                        {editing[field.key] ? <img src={img(editing[field.key])} alt={`${field.label} preview`} className="img-preview-lg" /> : null}
+                        <AdminImagePreview url={editing[field.key]} label={`${field.label} preview`} className="img-preview-lg" />
                       </span>
                     ) : (
                       <input
@@ -329,6 +312,7 @@ export function CrudTable({
               </button>
             </div>
           </form>
+          <UploadDialog open={uploading !== null} title={`Upload ${fields.find(field => field.key === uploading)?.label ?? 'image'}`} accept="image/*" onClose={() => setUploading(null)} onUploaded={(url) => { if (uploading) setEditing(current => current ? { ...current, [uploading]: url } : current); setUploading(null) }} />
         </dialog>
       )}
     </div>

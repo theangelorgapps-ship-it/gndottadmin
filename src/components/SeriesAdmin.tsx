@@ -7,7 +7,7 @@ export function seriesFields(type: 'tvshow' | 'teaching', parents: any[]): Field
     { key: 'entertainment_id', label: teaching ? 'Teachings' : 'Show', type: 'select', required: true, options: parents.map((p) => ({ value: p.id, label: p.name })) },
     { key: 'season_number', label: teaching ? 'Volume number' : 'Series number', type: 'number', required: true },
     { key: 'poster_url', label: 'Poster', type: 'image' },
-    { key: 'access', label: 'Access', type: 'select', options: [{ value: 'free', label: 'Free' }, { value: 'paid', label: 'Paid' }] },
+    { key: 'access', label: 'Access', type: 'select', required: true, options: [{ value: 'free', label: 'Free' }, { value: 'paid', label: 'Paid (pay-per-view)' }] },
     { key: 'price', label: 'Price', type: 'number' },
     { key: 'status', label: 'Status', type: 'toggle' },
     { key: 'short_desc', label: 'Short Description', type: 'textarea' },

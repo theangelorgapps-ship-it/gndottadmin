@@ -38,5 +38,8 @@
     "AUTH_EMAIL_FROM": "noreply@halobox.tv",
     "AUTH_EMAIL_ENABLED": "1"
   },
-  "workers_dev": true
+  "workers_dev": true,
+  "images": {
+    "binding": "IMAGES"
+  }
 }

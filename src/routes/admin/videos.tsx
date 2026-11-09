@@ -4,6 +4,8 @@ import { adminListVideos, adminUpsertVideo, adminDeleteVideo, adminGetVideo } fr
 import { useConfirm } from '../../lib/confirm'
 import { useToast } from '../../lib/toast'
 import { AdminDataTable } from '../../components/AdminDataTable'
+import { AdminImagePreview } from '../../components/Poster'
+import { UploadButton, BunnyUploadButton } from '../../components/admin-content'
 
 export const Route = createFileRoute('/admin/videos')({
   loader: async () => await adminListVideos(),
@@ -26,74 +28,6 @@ function Field({ id, label, children, span = false }: { id: string; label: strin
       <label htmlFor={id}>{label}</label>
       {children}
     </div>
-  )
-}
-
-function BunnyUploadButton({
-  videoId,
-  title,
-  onDone,
-  parentBusy,
-  onBusyChange,
-}: {
-  videoId?: number
-  title: string
-  onDone: (videoId: string) => void
-  parentBusy: boolean
-  onBusyChange: (busy: boolean) => void
-}) {
-  const [busy, setBusy] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const notify = useToast()
-
-  return (
-    <span className="inline-flex max-w-full flex-col items-start gap-1">
-      <button
-        type="button"
-        className="btn btn-dark btn-sm upload-btn"
-        disabled={busy || parentBusy}
-        aria-busy={busy}
-        onClick={() => inputRef.current?.click()}
-      >
-        {busy ? 'Uploading to Bunny…' : 'Upload to Bunny Stream'}
-      </button>
-      {busy && <span className="text-xs text-muted-foreground" role="status">Keep this editor open until the upload finishes.</span>}
-      <input
-        ref={inputRef}
-        type="file"
-        accept="video/*"
-        hidden
-        disabled={busy || parentBusy}
-        aria-label="Choose video file for Bunny Stream"
-        onChange={async (event) => {
-          const input = event.currentTarget
-          const file = input.files?.[0]
-          if (!file) return
-          setBusy(true)
-          onBusyChange(true)
-          try {
-            const form = new FormData()
-            form.append('file', file)
-            form.append('title', title || file.name)
-            if (videoId) {
-              form.append('table', 'videos')
-              form.append('row_id', String(videoId))
-            }
-            const response = await fetch('/api/bunny-upload', { method: 'POST', body: form })
-            const json: any = await response.json().catch(() => null)
-            if (!response.ok || !json?.ok || !json.videoId) throw new Error(json?.error ?? 'The video could not be uploaded.')
-            notify({ title: 'Upload complete', description: 'The video was uploaded to Bunny Stream.', variant: 'success' })
-            onDone(json.videoId)
-          } catch (error: any) {
-            notify({ title: 'Bunny upload failed', description: error?.message ?? 'The video could not be uploaded.', variant: 'destructive' })
-          } finally {
-            setBusy(false)
-            onBusyChange(false)
-            input.value = ''
-          }
-        }}
-      />
-    </span>
   )
 }
 
@@ -216,7 +150,7 @@ function AdminVideos() {
       <AdminDataTable
         rows={items}
         columns={[
-          { key: 'name', label: 'Name', kind: 'title' },
+          { key: 'poster_url', label: 'Video', kind: 'img' },
           { key: 'duration', label: 'Duration' },
           { key: 'release_date', label: 'Release', kind: 'date' },
           { key: 'status', label: 'Status', kind: 'pill' },
@@ -283,7 +217,7 @@ function AdminVideos() {
               <Field id="video-bunny" label="Bunny Stream Video ID" span>
                 <div className="img-field">
                   <input id="video-bunny" placeholder="Paste a Bunny video ID, link, or iframe embed" value={editing.bunny_video_url ?? ''} disabled={busy} onChange={(event) => set({ bunny_video_url: event.target.value })} />
-                  <BunnyUploadButton videoId={editing.id} title={editing.name} parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(videoId) => set({ bunny_video_url: videoId })} />
+                  <BunnyUploadButton table="videos" contentId={editing.id} title={editing.name} parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(videoId) => set({ bunny_video_url: videoId })} />
                 </div>
               </Field>
               <Field id="video-trailer" label="Trailer URL (YouTube)">
@@ -293,10 +227,12 @@ function AdminVideos() {
                 <input id="video-external" value={editing.video_url_input ?? ''} disabled={busy} onChange={(event) => set({ video_url_input: event.target.value })} />
               </Field>
               <Field id="video-poster" label="Poster URL">
-                <input id="video-poster" value={editing.poster_url ?? ''} disabled={busy} onChange={(event) => set({ poster_url: event.target.value })} />
+                <div className="img-field"><input id="video-poster" value={editing.poster_url ?? ''} disabled={busy} onChange={(event) => set({ poster_url: event.target.value })} /><UploadButton label="Poster" parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(url) => set({ poster_url: url })} /></div>
+                <AdminImagePreview url={editing.poster_url} label="Poster preview" className="img-preview-lg" />
               </Field>
               <Field id="video-thumbnail" label="Thumbnail URL">
-                <input id="video-thumbnail" value={editing.thumbnail_url ?? ''} disabled={busy} onChange={(event) => set({ thumbnail_url: event.target.value })} />
+                <div className="img-field"><input id="video-thumbnail" value={editing.thumbnail_url ?? ''} disabled={busy} onChange={(event) => set({ thumbnail_url: event.target.value })} /><UploadButton label="Thumbnail" parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(url) => set({ thumbnail_url: url })} /></div>
+                <AdminImagePreview url={editing.thumbnail_url} label="Thumbnail preview" className="img-preview-lg" />
               </Field>
               <Field id="video-subtitles" label="Subtitles">
                 <select id="video-subtitles" value={editing.enable_subtitle ?? 0} disabled={busy} onChange={(event) => set({ enable_subtitle: Number(event.target.value) })}>
@@ -308,7 +244,7 @@ function AdminVideos() {
                 <input id="video-subtitle-language" value={editing.subtitle_language ?? ''} disabled={busy} onChange={(event) => set({ subtitle_language: event.target.value })} />
               </Field>
               <Field id="video-subtitle-file" label="Subtitle file" span>
-                <input id="video-subtitle-file" value={editing.subtitle_file ?? ''} disabled={busy} onChange={(event) => set({ subtitle_file: event.target.value })} />
+                <div className="img-field"><input id="video-subtitle-file" value={editing.subtitle_file ?? ''} disabled={busy} onChange={(event) => set({ subtitle_file: event.target.value })} /><UploadButton label="Subtitle" accept=".vtt,.srt" parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(url) => set({ subtitle_file: url })} /></div>
               </Field>
               <Field id="video-meta-title" label="Meta title (SEO)" span>
                 <input id="video-meta-title" value={editing.meta_title ?? ''} disabled={busy} onChange={(event) => set({ meta_title: event.target.value })} />

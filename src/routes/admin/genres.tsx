@@ -4,13 +4,15 @@ import { adminListGenres, adminUpsertGenre, adminDeleteGenre } from '../../lib/a
 import { useConfirm } from '../../lib/confirm'
 import { useToast } from '../../lib/toast'
 import { AdminDataTable } from '../../components/AdminDataTable'
+import { UploadDialog } from '../../components/UploadDialog'
+import { AdminImagePreview } from '../../components/Poster'
 
 export const Route = createFileRoute('/admin/genres')({
   loader: async () => await adminListGenres(),
   component: AdminGenres,
 })
 
-type GForm = { id?: number; name: string; status: number }
+type GForm = { id?: number; name: string; status: number; file_url: string }
 
 function AdminGenres() {
   const items = Route.useLoaderData()
@@ -18,6 +20,7 @@ function AdminGenres() {
   const confirmAction = useConfirm()
   const notify = useToast()
   const [editing, setEditing] = useState<GForm | null>(null)
+  const [uploadOpen, setUploadOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -43,18 +46,18 @@ function AdminGenres() {
   function openEditor(genre?: any) {
     setError(null)
     setEditing(genre
-      ? { id: genre.id, name: genre.name, status: genre.status ?? 1 }
-      : { name: '', status: 1 })
+      ? { id: genre.id, name: genre.name, status: genre.status ?? 1, file_url: genre.file_url ?? '' }
+      : { name: '', status: 1, file_url: '' })
   }
 
   function requestClose() {
-    if (busy) return
+    if (busy || uploadOpen) return
     setEditing(null)
     setError(null)
   }
 
   async function save() {
-    if (!editing || busy) return
+    if (!editing || busy || uploadOpen) return
     if (!editing.name.trim()) {
       setError('Name is required.')
       return
@@ -63,12 +66,12 @@ function AdminGenres() {
     setError(null)
     try {
       await adminUpsertGenre({ data: editing })
-      notify({ title: editing.id ? 'Genre updated' : 'Genre created', description: editing.name, variant: 'success' })
+      notify({ title: editing.id ? 'Category updated' : 'Category created', description: editing.name, variant: 'success' })
       setEditing(null)
       router.invalidate()
     } catch (e: any) {
       setError(e?.message ?? 'Save failed.')
-      notify({ title: 'Save failed', description: e?.message ?? 'Could not save the genre.', variant: 'destructive' })
+      notify({ title: 'Save failed', description: e?.message ?? 'Could not save the category.', variant: 'destructive' })
     } finally {
       setBusy(false)
     }
@@ -76,18 +79,18 @@ function AdminGenres() {
 
   async function remove(id: number, name: string) {
     const ok = await confirmAction({
-      title: `Delete genre "${name}"?`,
-      description: 'Titles mapped to this genre will lose the association.',
+      title: `Delete category "${name}"?`,
+      description: 'Titles mapped to this category will lose the association.',
       approveLabel: 'Delete',
     })
     if (!ok) return
     setBusy(true)
     try {
       await adminDeleteGenre({ data: id })
-      notify({ title: 'Genre deleted', description: name, variant: 'success' })
+      notify({ title: 'Category deleted', description: name, variant: 'success' })
       router.invalidate()
     } catch (e: any) {
-      notify({ title: 'Delete failed', description: e?.message ?? 'Could not delete the genre.', variant: 'destructive' })
+      notify({ title: 'Delete failed', description: e?.message ?? 'Could not delete the category.', variant: 'destructive' })
     } finally {
       setBusy(false)
     }
@@ -95,23 +98,23 @@ function AdminGenres() {
 
   return (
     <div className="min-w-0">
-      <div className="breadcrumb">Dashboard <span className="sep">/</span> <span className="here">Genres</span></div>
+      <div className="breadcrumb">Dashboard <span className="sep">/</span> <span className="here">Categories</span></div>
       <div className="toolbar">
-        <span className="text-sm text-muted-foreground">Manage genres used to organize content.</span>
+        <span className="text-sm text-muted-foreground">Manage categories used to organize content.</span>
         <span className="spacer" />
-        <button type="button" className="btn btn-primary" onClick={() => openEditor()} disabled={busy}>+ New Genre</button>
+        <button type="button" className="btn btn-primary" onClick={() => openEditor()} disabled={busy}>+ New Category</button>
       </div>
       <AdminDataTable
         rows={items}
         columns={[
-          { key: 'name', label: 'Name', kind: 'title' },
+          { key: 'file_url', label: 'Category', kind: 'img' },
           { key: 'slug', label: 'Slug' },
           { key: 'titles', label: 'Titles' },
           { key: 'status', label: 'Status', kind: 'pill' },
         ]}
         searchable={['name', 'slug']}
-        searchPlaceholder="Search genres…"
-        empty="No genres found."
+        searchPlaceholder="Search categories…"
+        empty="No categories found."
         busy={busy}
         onEdit={openEditor}
         onDelete={(genre) => remove(genre.id, genre.name)}
@@ -137,7 +140,7 @@ function AdminGenres() {
         >
           <form className="min-w-0" noValidate onSubmit={(event) => { event.preventDefault(); void save() }}>
             <div className="mb-5">
-              <h2 id={dialogTitleId} className="mb-1">{editing.id ? 'Edit' : 'New'} Genre</h2>
+              <h2 id={dialogTitleId} className="mb-1">{editing.id ? 'Edit' : 'New'} Category</h2>
               <p id={dialogHelpId} className="text-sm text-muted-foreground">Fields marked * are required.</p>
             </div>
             <div className="modal-form">
@@ -151,6 +154,11 @@ function AdminGenres() {
                   aria-required="true"
                   onChange={(event) => setEditing({ ...editing, name: event.target.value })}
                 />
+              </div>
+              <div className="mfield span2">
+                <label htmlFor="category-image">Category image</label>
+                <div className="img-field"><input id="category-image" value={editing.file_url} disabled={busy} placeholder="Image URL" onChange={(event) => setEditing({ ...editing, file_url: event.target.value })} /><button type="button" className="btn btn-dark btn-sm" disabled={busy || uploadOpen} onClick={() => setUploadOpen(true)}>Upload image</button></div>
+                <AdminImagePreview url={editing.file_url} label="Category image preview" className="img-preview-lg" />
               </div>
               <div className="mfield span2">
                 <label htmlFor="genre-status">Status</label>
@@ -167,10 +175,11 @@ function AdminGenres() {
             </div>
             {error && <div className="error mt-3" role="alert">{error}</div>}
             <div className="modal-actions border-t border-border pt-4">
-              <button type="button" className="btn btn-dark" onClick={requestClose} disabled={busy}>Cancel</button>
-              <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
+              <button type="button" className="btn btn-dark" onClick={requestClose} disabled={busy || uploadOpen}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={busy || uploadOpen}>{busy ? 'Saving…' : 'Save'}</button>
             </div>
           </form>
+          <UploadDialog open={uploadOpen} onClose={() => setUploadOpen(false)} title="Upload category image" accept="image/*" onUploaded={(url) => { setEditing(current => current ? { ...current, file_url: url } : current); setUploadOpen(false) }} />
         </dialog>
       )}
     </div>

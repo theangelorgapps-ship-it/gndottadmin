@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Outlet, redirect, useRouterState } from '@tanstack/react-router'
+import { createFileRoute, Outlet, redirect, useRouterState } from '@tanstack/react-router'
 import React, { useState } from 'react'
 import {
   LayoutDashboard, Library, Tags, Church, Tv, ListVideo, PlaySquare,
@@ -11,6 +11,9 @@ import { getAdminSession } from '../lib/admin'
 import { Sidebar, SidebarBody, SidebarLink } from '../components/ui/sidebar'
 import { ToastProvider } from '../lib/toast'
 import { ConfirmProvider } from '../lib/confirm'
+import { AdminBrand } from '../components/AdminBrand'
+import { AdminProfileMenu } from '../components/AdminProfileMenu'
+import '../admin-polish.css'
 
 export const Route = createFileRoute('/admin')({
   beforeLoad: async () => {
@@ -42,7 +45,7 @@ const GROUPS: { title: string; items: SideItem[] }[] = [
   {
     title: 'Content',
     items: [
-      { to: '/admin/genres', label: 'Genres', icon: <Tags className={ICON} /> },
+      { to: '/admin/genres', label: 'Categories', icon: <Tags className={ICON} /> },
       { to: '/admin/movies', label: 'Sermons', icon: <Church className={ICON} /> },
       {
         to: '/admin/tv-shows',
@@ -120,18 +123,6 @@ const GROUPS: { title: string; items: SideItem[] }[] = [
   },
 ]
 
-function Logo() {
-  return (
-    <Link to={"/admin" as any} className="admin-brand" aria-label="GoodNews Halobox admin dashboard">
-      <span className="brand-mark" aria-hidden="true">GH</span>
-      <span className="brand-copy">
-        <strong>GoodNews Halobox</strong>
-        <small>Admin workspace</small>
-      </span>
-    </Link>
-  )
-}
-
 function currentSection(pathname: string) {
   if (pathname.startsWith('/admin/user/')) return 'Users'
   for (const group of GROUPS) {
@@ -149,16 +140,16 @@ function AdminLayout() {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const [open, setOpen] = useState(true)
   const section = currentSection(pathname)
-  const initial = admin.email.trim().charAt(0).toUpperCase() || 'A'
+  const navigating = useRouterState({ select: (state) => state.isLoading })
 
   return (
     <ToastProvider>
       <ConfirmProvider>
-        <div className="admin-shell">
+        <div className="admin-shell admin-polished">
           <a className="skip-link" href="#main-content">Skip to content</a>
           <Sidebar open={open} setOpen={setOpen}>
             <SidebarBody className="admin-sidebar">
-              <Logo />
+              <AdminBrand />
               <nav className="admin-nav" aria-label="Admin sections">
                 {GROUPS.map((group) => (
                   <section className="nav-group" key={group.title} aria-label={group.title}>
@@ -199,12 +190,10 @@ function AdminLayout() {
                 <span>GoodNews Halobox</span>
                 <strong>{section}</strong>
               </div>
-              <div className="topbar-account">
-                <span className="topbar-avatar" aria-hidden="true">{initial}</span>
-                <span className="topbar-email" title={admin.email}>{admin.email}</span>
-              </div>
+              <AdminProfileMenu admin={admin} />
             </header>
-            <main className="admin-main" id="main-content">
+            {navigating && <div className="admin-route-progress" role="status"><span className="sr-only">Loading page…</span></div>}
+            <main className="admin-main" id="main-content" aria-busy={navigating}>
               <Outlet />
             </main>
           </div>

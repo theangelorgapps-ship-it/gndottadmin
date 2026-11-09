@@ -49,7 +49,7 @@ const CARDS: { key: string; label: string; to: string; icon: string }[] = [
   { key: 'tvshows', label: 'Shows', to: '/admin/tv-shows', icon: 'tv' },
   { key: 'videos', label: 'Videos', to: '/admin/videos', icon: 'play' },
   { key: 'channels', label: 'Live Channels', to: '/admin/live-tv', icon: 'radio' },
-  { key: 'genres', label: 'Genres', to: '/admin/genres', icon: 'tag' },
+  { key: 'genres', label: 'Categories', to: '/admin/genres', icon: 'tag' },
   { key: 'plans', label: 'Plans', to: '/admin/plans', icon: 'layers' },
   { key: 'cast', label: 'Personalities', to: '/admin/actors', icon: 'users' },
 ]
@@ -136,12 +136,12 @@ function GenreDonut({ data }: { data: { name: string; n: number }[] }) {
   return (
     <section className="panel genre-panel overflow-visible" aria-labelledby="genre-heading">
       <div className="mb-4">
-        <h2 id="genre-heading" className="text-base font-semibold">Top 5 Genres</h2>
-        <p className="mt-1 text-xs text-muted-foreground">Content mapped to each genre</p>
+        <h2 id="genre-heading" className="text-base font-semibold">Top 5 Categories</h2>
+        <p className="mt-1 text-xs text-muted-foreground">Content mapped to each category</p>
       </div>
       {total === 0 ? (
         <div className="empty px-3 py-10">
-          <p className="font-medium text-foreground">No genre mappings yet</p>
+          <p className="font-medium text-foreground">No category mappings yet</p>
           <p className="mt-1 text-sm">Mappings appear here as content is categorized.</p>
         </div>
       ) : (
@@ -150,7 +150,7 @@ function GenreDonut({ data }: { data: { name: string; n: number }[] }) {
             config={chartConfig}
             className="mx-auto aspect-square max-h-[280px] min-h-[220px] w-full"
             role="img"
-            aria-label={`Genre distribution across ${total} content mappings`}
+            aria-label={`Category distribution across ${total} content mappings`}
           >
             <PieChart>
               <ChartTooltip content={<ChartTooltipContent hideLabel />} />
@@ -166,7 +166,7 @@ function GenreDonut({ data }: { data: { name: string; n: number }[] }) {
               <ChartLegend content={<ChartLegendContent nameKey="name" />} />
             </PieChart>
           </ChartContainer>
-          <ul className="mt-3 space-y-2 text-xs" aria-label="Genre totals">
+          <ul className="mt-3 space-y-2 text-xs" aria-label="Category totals">
             {chartData.map((genre) => (
               <li key={genre.name} className="flex items-center justify-between gap-3">
                 <span className="flex min-w-0 items-center gap-2 text-muted-foreground">

@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useRef, useState } from 'react'
-import { ChevronDown, Search, X } from 'lucide-react'
+import { ChevronDown, Pencil, Search, X } from 'lucide-react'
 import { Card, CardContent, CardHeader } from './ui/card'
 import { Checkbox } from './ui/checkbox'
 import { Button } from './ui/button'
@@ -22,7 +22,7 @@ import {
   TableRow,
 } from './ui/table'
 import { Datatable1Pagination } from './ui/datatable-1-utils/datatable-1-pagination'
-import { img } from './Poster'
+import { AdminImagePreview } from './Poster'
 
 export type DataCol = {
   key: string
@@ -51,7 +51,7 @@ export function renderDataCell(r: any, c: DataCol) {
     case 'img':
       return (
         <div className="flex min-w-0 items-center gap-3">
-          <img src={img(v)} alt="" className="h-[60px] w-[46px] shrink-0 rounded-md border border-border object-cover" />
+          <AdminImagePreview url={v || (c.key === 'poster_url' ? r.thumbnail_url : null)} label={`${r.name ?? r.title ?? c.label} artwork`} />
           <div className="min-w-0">
             <div className="break-words font-medium text-foreground">
               {r[c.key.replace('file_url', 'name').replace('poster_url', 'name')] ?? r.name ?? ''}
@@ -67,7 +67,7 @@ export function renderDataCell(r: any, c: DataCol) {
     case 'pill':
       return <span className={`pill ${v == 1 ? 'on' : 'off'}`}>{v == 1 ? 'Active' : 'Inactive'}</span>
     case 'access':
-      return <span className={`pill ${v === 'free' ? 'info' : 'on'}`}>{v === 'free' ? 'Free' : 'Paid'}</span>
+      return <span className={`pill ${v === 'free' ? 'info' : 'on'}`}>{v === 'free' ? 'Free' : v === 'paid' ? 'Paid' : v === 'subscription' ? 'Subscription' : v || 'Not set'}</span>
     case 'money':
       return <span className="tabular-nums">${Number(v ?? 0).toFixed(2)}</span>
     case 'date':
@@ -264,7 +264,9 @@ export function AdminDataTable({
                   ))}
                   {hasActions && (
                     <TableCell className="px-4 py-3 text-right">
-                      <DropdownMenu>
+                      <div className="inline-flex items-center gap-1">
+                      {onEdit && <button type="button" className="btn btn-dark btn-sm" disabled={busy} onClick={() => onEdit(row)} aria-label={`Edit ${rowName}`}><Pencil size={14} aria-hidden="true" />Edit</button>}
+                      {onDelete && <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
                             type="button"
@@ -295,7 +297,8 @@ export function AdminDataTable({
                             )}
                           </DropdownMenuGroup>
                         </DropdownMenuContent>
-                      </DropdownMenu>
+                      </DropdownMenu>}
+                      </div>
                     </TableCell>
                   )}
                 </TableRow>

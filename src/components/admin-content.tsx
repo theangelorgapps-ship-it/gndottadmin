@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { useRouter } from '@tanstack/react-router'
+import { Link, useRouter } from '@tanstack/react-router'
 import {
   adminUpsertContent, adminDeleteContent, adminGetContent, adminContentOptions, type ContentInput,
 } from '../lib/admin'
 import { useConfirm } from '../lib/confirm'
 import { useToast } from '../lib/toast'
 import { AdminDataTable } from './AdminDataTable'
-import { img } from './Poster'
+import { AdminImagePreview } from './Poster'
+import { UploadDialog } from './UploadDialog'
+import { orderPersonalities } from './CrudTable'
 
 const TYPE_LABEL = { movie: 'Sermon', tvshow: 'Show', teaching: 'Teaching' } as const
 
@@ -55,125 +57,29 @@ type UploadButtonProps = {
   onBusyChange?: (busy: boolean) => void
 }
 
-function UploadButton({ onDone, accept, label, parentBusy = false, onBusyChange }: UploadButtonProps) {
-  const [busy, setBusy] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const notify = useToast()
-
-  return (
-    <span className="inline-flex max-w-full">
-      <button
-        type="button"
-        className="btn btn-dark btn-sm upload-btn"
-        disabled={busy || parentBusy}
-        aria-busy={busy}
-        onClick={() => inputRef.current?.click()}
-      >
-        {busy ? 'Uploading…' : 'Upload'}
-      </button>
-      <input
-        ref={inputRef}
-        type="file"
-        accept={accept ?? 'image/*'}
-        hidden
-        disabled={busy || parentBusy}
-        aria-label={`Choose ${label.toLowerCase()} file`}
-        onChange={async (event) => {
-          const input = event.currentTarget
-          const file = input.files?.[0]
-          if (!file) return
-          setBusy(true)
-          onBusyChange?.(true)
-          try {
-            const form = new FormData()
-            form.append('file', file)
-            const response = await fetch('/api/upload', { method: 'POST', body: form })
-            const json: any = await response.json().catch(() => null)
-            if (!response.ok || !json?.ok || !json.url) throw new Error(json?.error ?? 'The file could not be uploaded.')
-            onDone(json.url)
-            notify({ title: 'Upload complete', description: file.name, variant: 'success' })
-          } catch (error: any) {
-            notify({ title: 'Upload failed', description: error?.message ?? 'The file could not be uploaded.', variant: 'destructive' })
-          } finally {
-            setBusy(false)
-            onBusyChange?.(false)
-            input.value = ''
-          }
-        }}
-      />
-    </span>
-  )
+export function UploadButton({ onDone, accept, label, parentBusy = false, onBusyChange }: UploadButtonProps) {
+  const [open, setOpen] = useState(false)
+  function close() { setOpen(false); onBusyChange?.(false) }
+  return <>
+    <button type="button" className="btn btn-dark btn-sm upload-btn" disabled={parentBusy || open} onClick={() => { setOpen(true); onBusyChange?.(true) }}>Upload {label.toLowerCase()}</button>
+    <UploadDialog open={open} onClose={close} onUploaded={(url) => { onDone(url); close() }} accept={accept ?? 'image/*'} title={`Upload ${label.toLowerCase()}`} />
+  </>
 }
 
-function BunnyUploadButton({
-  contentId,
-  title,
-  onDone,
-  parentBusy = false,
-  onBusyChange,
-}: {
+export function BunnyUploadButton({ contentId, title, onDone, parentBusy = false, onBusyChange, table = 'entertainments' }: {
   contentId?: number
   title: string
   onDone: (videoId: string) => void
   parentBusy?: boolean
   onBusyChange?: (busy: boolean) => void
+  table?: 'entertainments' | 'videos'
 }) {
-  const [busy, setBusy] = useState(false)
-  const [progress, setProgress] = useState<string | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const notify = useToast()
-
-  return (
-    <span className="inline-flex max-w-full flex-col items-start gap-1">
-      <button
-        type="button"
-        className="btn btn-dark btn-sm upload-btn"
-        disabled={busy || parentBusy}
-        aria-busy={busy}
-        onClick={() => inputRef.current?.click()}
-      >
-        {busy ? (progress ?? 'Uploading to Bunny…') : 'Upload to Bunny Stream'}
-      </button>
-      {busy && <span className="text-xs text-muted-foreground" role="status">Keep this editor open until the upload finishes.</span>}
-      <input
-        ref={inputRef}
-        type="file"
-        accept="video/*"
-        hidden
-        disabled={busy || parentBusy}
-        aria-label="Choose video file for Bunny Stream"
-        onChange={async (event) => {
-          const input = event.currentTarget
-          const file = input.files?.[0]
-          if (!file) return
-          setBusy(true)
-          onBusyChange?.(true)
-          setProgress(`Uploading ${(file.size / 1024 / 1024).toFixed(1)} MB…`)
-          try {
-            const form = new FormData()
-            form.append('file', file)
-            form.append('title', title || file.name)
-            if (contentId) {
-              form.append('table', 'entertainments')
-              form.append('row_id', String(contentId))
-            }
-            const response = await fetch('/api/bunny-upload', { method: 'POST', body: form })
-            const json: any = await response.json().catch(() => null)
-            if (!response.ok || !json?.ok || !json.videoId) throw new Error(json?.error ?? 'The video could not be uploaded.')
-            notify({ title: 'Upload complete', description: 'The video was uploaded to Bunny Stream.', variant: 'success' })
-            onDone(json.videoId)
-          } catch (error: any) {
-            notify({ title: 'Bunny upload failed', description: error?.message ?? 'The video could not be uploaded.', variant: 'destructive' })
-          } finally {
-            setBusy(false)
-            setProgress(null)
-            onBusyChange?.(false)
-            input.value = ''
-          }
-        }}
-      />
-    </span>
-  )
+  const [open, setOpen] = useState(false)
+  function close() { setOpen(false); onBusyChange?.(false) }
+  return <>
+    <button type="button" className="btn btn-dark btn-sm upload-btn" disabled={parentBusy || open} onClick={() => { setOpen(true); onBusyChange?.(true) }}>Upload to Bunny Stream</button>
+    <UploadDialog open={open} onClose={close} onUploaded={(videoId) => { onDone(videoId); close() }} accept="video/*" title="Upload to Bunny Stream" target={{ endpoint: '/api/bunny-upload', title, table, rowId: contentId }} />
+  </>
 }
 
 const FORM_TABS = [
@@ -181,7 +87,7 @@ const FORM_TABS = [
   { key: 'media', label: 'Media & Video' },
   { key: 'pricing', label: 'Pricing' },
   { key: 'seo', label: 'SEO' },
-  { key: 'cast', label: 'Personalities & Genres' },
+  { key: 'cast', label: 'People & categories' },
 ] as const
 
 export function ContentAdmin({ items, type, title }: { items: any[]; type: 'movie' | 'tvshow' | 'teaching'; title: string }) {
@@ -190,7 +96,7 @@ export function ContentAdmin({ items, type, title }: { items: any[]; type: 'movi
   const notify = useToast()
   const [editing, setEditing] = useState<ContentInput | null>(null)
   const [formTab, setFormTab] = useState<(typeof FORM_TABS)[number]['key']>('general')
-  const [options, setOptions] = useState<{ genres: any[]; cast: any[]; plans: any[] } | null>(null)
+  const [options, setOptions] = useState<{ genres: any[]; cast: any[]; plans: any[]; locations: any[] } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [activeUploads, setActiveUploads] = useState(0)
@@ -298,8 +204,7 @@ export function ContentAdmin({ items, type, title }: { items: any[]; type: 'movi
   }
 
   const set = (patch: Partial<ContentInput>) => setEditing((current) => current ? { ...current, ...patch } : current)
-  const actors = options?.cast.filter((person) => person.type !== 'director') ?? []
-  const directors = options?.cast.filter((person) => person.type === 'director') ?? []
+  const personalities = orderPersonalities(options?.cast ?? [])
 
   function onTabKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, index: number) {
     if (isBusy) return
@@ -465,7 +370,7 @@ export function ContentAdmin({ items, type, title }: { items: any[]; type: 'movi
                       <input id="content-poster" value={editing.poster_url ?? ''} disabled={busy} onChange={(event) => set({ poster_url: event.target.value })} />
                       <UploadButton label="Poster" parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(url) => set({ poster_url: url })} />
                     </div>
-                    {editing.poster_url && <img className="img-preview-lg" src={img(editing.poster_url)} alt="Poster preview" />}
+                    <AdminImagePreview url={editing.poster_url} label="Poster preview" className="img-preview-lg" />
                   </div>
                 </Field>
                 <Field id="content-thumbnail" label="Thumbnail" span>
@@ -474,7 +379,7 @@ export function ContentAdmin({ items, type, title }: { items: any[]; type: 'movi
                       <input id="content-thumbnail" value={editing.thumbnail_url ?? ''} disabled={busy} onChange={(event) => set({ thumbnail_url: event.target.value })} />
                       <UploadButton label="Thumbnail" parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(url) => set({ thumbnail_url: url })} />
                     </div>
-                    {editing.thumbnail_url && <img className="img-preview-lg" src={img(editing.thumbnail_url)} alt="Thumbnail preview" />}
+                    <AdminImagePreview url={editing.thumbnail_url} label="Thumbnail preview" className="img-preview-lg" />
                   </div>
                 </Field>
                 <Field id="content-subtitles" label="Enable subtitles">
@@ -547,7 +452,7 @@ export function ContentAdmin({ items, type, title }: { items: any[]; type: 'movi
                       <input id="content-seo-image" value={editing.seo_image ?? ''} disabled={busy} onChange={(event) => set({ seo_image: event.target.value })} />
                       <UploadButton label="SEO image" parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(url) => set({ seo_image: url })} />
                     </div>
-                    {editing.seo_image && <img className="img-preview-lg" src={img(editing.seo_image)} alt="SEO image preview" />}
+                    <AdminImagePreview url={editing.seo_image} label="SEO image preview" className="img-preview-lg" />
                   </div>
                 </Field>
               </div>
@@ -555,8 +460,8 @@ export function ContentAdmin({ items, type, title }: { items: any[]; type: 'movi
 
             {formTab === 'cast' && (
               <div className="form-grid" id="content-panel-cast" role="tabpanel" aria-labelledby="content-tab-cast">
-                <ChoiceGroup label="Genres">
-                  <div className="check-grid" role="group" aria-label="Genres">
+                <ChoiceGroup label="Categories">
+                  <div className="check-grid" role="group" aria-label="Categories">
                     {(options?.genres ?? []).map((genre) => (
                       <label key={genre.id} className="check-item">
                         <input
@@ -571,48 +476,49 @@ export function ContentAdmin({ items, type, title }: { items: any[]; type: 'movi
                         {genre.name}
                       </label>
                     ))}
-                    {options && options.genres.length === 0 && <p className="text-sm text-muted-foreground">No genres are available.</p>}
+                    {options && options.genres.length === 0 && <p className="text-sm text-muted-foreground">No categories are available.</p>}
                   </div>
                 </ChoiceGroup>
                 <ChoiceGroup label="Personalities">
                   <div className="check-grid" role="group" aria-label="Personalities">
-                    {actors.map((person) => (
+                    {personalities.map((person) => (
                       <label key={person.id} className="check-item">
                         <input
                           type="checkbox"
-                          checked={(editing.cast_ids ?? []).includes(person.id)}
+                          checked={(person.type === 'director' ? editing.director_ids ?? [] : editing.cast_ids ?? []).includes(person.id)}
                           disabled={busy}
                           onChange={(event) => {
-                            const current = editing.cast_ids ?? []
-                            set({ cast_ids: event.target.checked ? [...current, person.id] : current.filter((id) => id !== person.id) })
+                            const key = person.type === 'director' ? 'director_ids' : 'cast_ids'
+                            const current = editing[key] ?? []
+                            set({ [key]: event.target.checked ? [...current, person.id] : current.filter((id) => id !== person.id) })
                           }}
                         />
                         {person.name}
                       </label>
                     ))}
-                    {options && actors.length === 0 && <p className="text-sm text-muted-foreground">No personalities are available.</p>}
+                    {options && personalities.length === 0 && <p className="text-sm text-muted-foreground">No personalities are available.</p>}
                   </div>
                 </ChoiceGroup>
                 <ChoiceGroup label="Locations">
                   <div className="check-grid" role="group" aria-label="Locations">
-                    {directors.map((person) => (
+                    {(options?.locations ?? []).map((person) => (
                       <label key={person.id} className="check-item">
                         <input
                           type="checkbox"
-                          checked={(editing.director_ids ?? []).includes(person.id)}
+                          checked={(editing.location_ids ?? []).includes(person.id)}
                           disabled={busy}
                           onChange={(event) => {
-                            const current = editing.director_ids ?? []
-                            set({ director_ids: event.target.checked ? [...current, person.id] : current.filter((id) => id !== person.id) })
+                            const current = editing.location_ids ?? []
+                            set({ location_ids: event.target.checked ? [...current, person.id] : current.filter((id) => id !== person.id) })
                           }}
                         />
                         {person.name}
                       </label>
                     ))}
-                    {options && directors.length === 0 && <p className="text-sm text-muted-foreground">No locations are available.</p>}
+                    {options && (options.locations ?? []).length === 0 && <p className="text-sm text-muted-foreground">No locations are available. <Link to="/admin/locations">Manage locations</Link></p>}
                   </div>
                 </ChoiceGroup>
-                {!options && <p className="text-sm text-muted-foreground" role="status" style={{ gridColumn: '1 / -1' }}>Loading genres and personalities…</p>}
+                {!options && <p className="text-sm text-muted-foreground" role="status" style={{ gridColumn: '1 / -1' }}>Loading categories, personalities, and locations…</p>}
               </div>
             )}
 

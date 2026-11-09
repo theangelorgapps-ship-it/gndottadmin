@@ -5,23 +5,34 @@ import manifest from '../lib/img-manifest.json'
 export const DEFAULT_IMG = '/default-image.jpg'
 
 const MANIFEST = manifest as Record<string, string>
+const LEGACY_IMAGE_PATHS = new Set(Object.values(MANIFEST))
+function publicImagePath(path: string) {
+  return LEGACY_IMAGE_PATHS.has(path) ? path.replace(/\.(png|jpe?g|webp|gif)$/i, '.avif') : path
+}
+
+export const PUBLIC_MEDIA_ORIGIN = 'https://halobox.tv'
 
 export function img(url: string | null | undefined): string {
-  if (!url) return DEFAULT_IMG
-  if (url.startsWith('/images/') || url.startsWith('/media/') || url.startsWith('/api/account-media/')) return url
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    // URLs left over from the Laravel seed point at a dead local server — resolve by filename
-    if (/^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/.test(url)) {
-      const base = url.split('/').pop() ?? url
-      const stem = base.replace(/\.(png|jpe?g|webp)$/i, '')
-      return MANIFEST[base] ?? MANIFEST[stem] ?? DEFAULT_IMG
-    }
-    return url
-  }
-  // bare filename or relative path from the Laravel DB — resolve via manifest
-  const base = url.split('/').pop() ?? url
-  const stem = base.replace(/\.(png|jpe?g|webp)$/i, '')
-  return MANIFEST[base] ?? MANIFEST[stem] ?? DEFAULT_IMG
+  if (!url?.trim()) return DEFAULT_IMG
+  const value = url.trim()
+  // Private account uploads stay on the authenticated admin origin.
+  if (value.startsWith('/api/account-media/')) return value
+  if (value.startsWith('/media/') || value.startsWith('/images/')) return `${PUBLIC_MEDIA_ORIGIN}${publicImagePath(value)}`
+  if (value.startsWith('media/') || value.startsWith('images/')) return `${PUBLIC_MEDIA_ORIGIN}${publicImagePath(`/${value}`)}`
+  if (/^https?:\/\//i.test(value) && !/^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/i.test(value)) return value
+  const base = value.split('/').pop()?.split(/[?#]/)[0] ?? value
+  const stem = base.replace(/\.(avif|png|jpe?g|webp|gif)$/i, '')
+  const resolved = MANIFEST[value] ?? MANIFEST[base] ?? MANIFEST[stem]
+  return resolved ? `${PUBLIC_MEDIA_ORIGIN}${publicImagePath(resolved)}` : DEFAULT_IMG
+}
+
+export function AdminImagePreview({ url, label, className = '' }: { url?: string | null; label: string; className?: string }) {
+  const source = url ? img(url) : ''
+  const [failedSource, setFailedSource] = useState<string | null>(null)
+  const missing = !source || source === DEFAULT_IMG || failedSource === source
+  return missing
+    ? <span className={`admin-image-preview empty ${className}`} role="img" aria-label={`${label}: ${url ? 'image unavailable' : 'no image selected'}`}>{url ? 'Image unavailable' : 'No image'}</span>
+    : <span className={`admin-image-preview ${className}`}><img src={source} alt={label} loading="lazy" onError={() => setFailedSource(source)} /></span>
 }
 
 export function IconPlay({ size = 15 }: { size?: number }) {

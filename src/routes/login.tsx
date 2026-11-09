@@ -4,7 +4,8 @@ import { Eye, EyeOff } from 'lucide-react'
 import { authClient } from '../lib/auth-client'
 import { SocialSignIn } from '../components/SocialSignIn'
 import { login, requestOtp, verifyOtp } from '../lib/api'
-import { GlassEffect, GlassFilter } from '../components/ui/liquid-glass'
+import { AdminBrand } from '../components/AdminBrand'
+import '../admin-polish.css'
 
 export const SITE_URL = 'https://halobox.tv'
 
@@ -14,24 +15,19 @@ export const Route = createFileRoute('/login')({
 
 export function AuthShell({ children, title }: { children: React.ReactNode; title: React.ReactNode }) {
   return (
-    <div className="auth-wrap">
-      <GlassFilter />
+    <div className="auth-wrap halobox-auth">
       <main className="auth-card" aria-labelledby="auth-title">
-        <GlassEffect className="auth-glass">
-          <div className="auth-glass-inner">
-            <div className="auth-brand">
-              <span className="brand-mark" aria-hidden="true">GH</span>
-              <span>GoodNews Halobox</span>
-            </div>
-            <div className="auth-heading">
-              <p>Admin workspace</p>
-              <h1 id="auth-title">{title}</h1>
-              <span>Sign in to manage content, people, and publishing.</span>
-            </div>
-            {children}
+        <div className="auth-glass-inner">
+          <AdminBrand link={false} />
+          <div className="auth-heading">
+            <p>Content. People. Possibility.</p>
+            <h1 id="auth-title">{title}</h1>
+            <span>Sign in to your admin workspace.</span>
           </div>
-        </GlassEffect>
+          {children}
+        </div>
       </main>
+      <p className="auth-footer">GoodNews Halobox · Admin access</p>
     </div>
   )
 }
@@ -122,7 +118,6 @@ function Login() {
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             required
-            autoFocus
             autoComplete="email"
             inputMode="email"
             maxLength={254}

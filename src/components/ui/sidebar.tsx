@@ -1,5 +1,6 @@
 "use client"
 
+import { AdminBrand } from "../AdminBrand"
 import { cn } from "@/lib/utils"
 import { Link, useRouterState } from "@tanstack/react-router"
 import React, {
@@ -156,10 +157,7 @@ export const MobileSidebar = ({
   return (
     <div className="sidebar-mobile">
       <div className="sidebar-mobile-bar">
-        <Link to={"/admin" as any} className="sidebar-mobile-brand" aria-label="GoodNews Halobox admin dashboard">
-          <span className="brand-mark" aria-hidden="true">GH</span>
-          <span>GoodNews Halobox</span>
-        </Link>
+        <AdminBrand />
         <button
           ref={menuButtonRef}
           type="button"

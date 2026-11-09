@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Bell,
   Blocks,
@@ -27,9 +27,14 @@ import { adminGetSettings, adminSaveSetting, adminUpsertSetting, adminListCurren
 import { useToast } from '../../lib/toast'
 import { img } from '../../components/Poster'
 import { SocialSignIn } from '../../components/SocialSignIn'
+import { UploadDialog } from '../../components/UploadDialog'
 
 export const Route = createFileRoute('/admin/settings')({
-  loader: async () => ({ groups: await adminGetSettings(), currencies: await adminListCurrencies() }),
+  validateSearch: (search: Record<string, unknown>) => ({ section: typeof search.section === 'string' && TABS.some(tab => tab.id === search.section) ? search.section : undefined }),
+  loader: async () => {
+    const [groups, currencies] = await Promise.all([adminGetSettings(), adminListCurrencies()])
+    return { groups, currencies }
+  },
   component: AdminSettings,
 })
 
@@ -202,14 +207,15 @@ function AdminSettings() {
   }
   const router = useRouter()
   const notify = useToast()
-  const [tab, setTab] = useState('business')
+  const { section } = Route.useSearch()
+  const [tab, setTab] = useState(section ?? 'business')
+  useEffect(() => { if (section) setTab(section) }, [section])
   const [values, setValues] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [testing, setTesting] = useState(false)
   const [uploadingKey, setUploadingKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
-  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   const lookup = new Map<string, { id: number; val: string | null }>()
   for (const t of Object.keys(groups)) for (const s of groups[t]) lookup.set(`${s.type}.${s.name}`, s)
@@ -234,29 +240,6 @@ function AdminSettings() {
     event.preventDefault()
     selectTab(TABS[nextIndex].id)
     tabRefs.current[nextIndex]?.focus()
-  }
-
-  async function uploadSettingImage(key: string, file?: File | null) {
-    if (!file) return
-    setUploadingKey(key)
-    setError(null)
-    try {
-      const form = new FormData()
-      form.append('file', file)
-      const res = await fetch('/api/upload', { method: 'POST', body: form })
-      const data = await res.json().catch(() => null) as { url?: string; error?: string } | null
-      if (!res.ok) throw new Error(data?.error ?? 'The image could not be uploaded.')
-      if (!data?.url) throw new Error('The upload response did not include an image URL.')
-      const uploadedUrl = data.url
-      setValues((cur) => ({ ...cur, [key]: uploadedUrl }))
-      notify({ title: 'Image uploaded', description: 'Remember to save to apply it.', variant: 'success' })
-    } catch (e: any) {
-      const message = e?.message ?? 'The image could not be uploaded.'
-      setError(message)
-      notify({ title: 'Upload failed', description: message, variant: 'destructive' })
-    } finally {
-      setUploadingKey(null)
-    }
   }
 
   async function saveAll() {
@@ -456,29 +439,15 @@ function AdminSettings() {
                               aria-describedby={helpId}
                               onChange={(event) => setValues((current) => ({ ...current, [key]: event.target.value }))}
                             />
-                            <input
-                              ref={(element) => { fileInputRefs.current[key] = element }}
-                              id={`${inputId}-file`}
-                              className="sr-only"
-                              type="file"
-                              accept="image/*"
-                              aria-label={`Choose ${field.label} image`}
-                              disabled={busy || uploadingKey !== null}
-                              onChange={(event) => {
-                                const file = event.currentTarget.files?.[0]
-                                void uploadSettingImage(key, file)
-                                event.currentTarget.value = ''
-                              }}
-                            />
                             <button
                               type="button"
                               className="btn btn-dark btn-sm mt-2"
                               disabled={busy || uploadingKey !== null}
                               aria-busy={uploadingKey === key}
-                              onClick={() => fileInputRefs.current[key]?.click()}
+                              onClick={() => setUploadingKey(key)}
                             >
                               {uploadingKey === key ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <Upload className="size-4" aria-hidden="true" />}
-                              {uploadingKey === key ? 'Uploading…' : `Upload ${field.label}`}
+                              {`Upload ${field.label}`}
                             </button>
                             <p id={helpId} className="mb-0 mt-2 text-xs font-normal text-muted-foreground">Upload an image or enter its existing location, then save this section.</p>
                           </div>
@@ -546,6 +515,7 @@ function AdminSettings() {
           )}
         </section>
       </div>
+      <UploadDialog open={uploadingKey !== null} title="Upload settings image" accept="image/*" onClose={() => setUploadingKey(null)} onUploaded={(url) => { if (uploadingKey) setValues(current => ({ ...current, [uploadingKey]: url })); setUploadingKey(null) }} />
     </div>
   )
 }

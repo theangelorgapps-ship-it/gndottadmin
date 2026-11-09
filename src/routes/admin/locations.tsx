@@ -5,7 +5,8 @@ import { type LocationInput } from '../../lib/locations-validation'
 import { AdminDataTable } from '../../components/AdminDataTable'
 import { useConfirm } from '../../lib/confirm'
 import { useToast } from '../../lib/toast'
-import { img } from '../../components/Poster'
+import { AdminImagePreview } from '../../components/Poster'
+import { UploadDialog } from '../../components/UploadDialog'
 import '../../locations-admin.css'
 
 export const Route = createFileRoute('/admin/locations')({
@@ -52,7 +53,7 @@ function LocationsPage() {
       {!readonly && <button type="button" className="btn btn-primary" disabled={busy} onClick={() => setEditing({ name: '', status: 1, assignments: [] })}>+ New Location</button>}
     </div>
     <AdminDataTable rows={locations} busy={busy} searchable={['name', 'address']} columns={[
-      { key: 'name', label: 'Location', kind: 'title' }, { key: 'address', label: 'Address' }, { key: 'titles', label: 'Titles' }, { key: 'status', label: 'Status', kind: 'pill' },
+      { key: 'file_url', label: 'Location', kind: 'img' }, { key: 'address', label: 'Address' }, { key: 'titles', label: 'Titles' }, { key: 'status', label: 'Status', kind: 'pill' },
     ]} onEdit={readonly ? undefined : row => edit(row.id)} onDelete={readonly ? undefined : row => remove(row.id, row.name)} />
     {editing && <LocationEditor initial={editing} titles={titles} onClose={() => setEditing(null)} onSaved={async () => {
       setEditing(null); await router.invalidate(); notify({ title: 'Location saved', variant: 'success' })
@@ -86,18 +87,6 @@ function LocationEditor({ initial, titles, onClose, onSaved }: { initial: Locati
     catch (error) { setError((error as Error).message) }
     finally { setBusy(false) }
   }
-  async function upload(file?: File) {
-    if (!file) return
-    setUploading(true); setError('')
-    try {
-      const body = new FormData(); body.append('file', file)
-      const response = await fetch('/api/upload', { method: 'POST', body })
-      const result = await response.json() as { url?: string; error?: string }
-      if (!response.ok || !result.url) throw new Error(result.error ?? 'Upload failed.')
-      setValue(current => ({ ...current, file_url: result.url }))
-    } catch (error) { setError((error as Error).message) }
-    finally { setUploading(false) }
-  }
   function toggle(title: any) {
     const key = keyFor(title)
     setValue(current => ({ ...current, assignments: chosen.has(key) ? current.assignments.filter(item => keyFor(item) !== key) : [...current.assignments, { content_type: title.content_type, content_id: title.id }] }))
@@ -113,7 +102,7 @@ function LocationEditor({ initial, titles, onClose, onSaved }: { initial: Locati
         <label>Address<input maxLength={1000} value={value.address ?? ''} onChange={event => setValue({ ...value, address: event.target.value })} /></label>
         <label>Description<textarea rows={3} maxLength={20000} value={value.description ?? ''} onChange={event => setValue({ ...value, description: event.target.value })} /></label>
         <label>Image URL<input value={value.file_url ?? ''} onChange={event => setValue({ ...value, file_url: event.target.value })} placeholder="https://… or /media/…" /></label>
-        <div className="location-image-upload"><label className="btn btn-dark">{uploading ? 'Uploading…' : 'Upload image'}<input hidden type="file" accept="image/*" onChange={event => void upload(event.target.files?.[0])} /></label>{value.file_url && <img src={img(value.file_url)} alt="Location preview" />}</div>
+        <div className="location-image-upload"><button type="button" className="btn btn-dark" onClick={() => setUploading(true)}>Upload image</button><AdminImagePreview url={value.file_url} label="Location preview" className="img-preview-lg" /></div>
         <label>Status<select value={value.status} onChange={event => setValue({ ...value, status: Number(event.target.value) })}><option value={1}>Active</option><option value={0}>Inactive</option></select></label>
       </fieldset>
       <fieldset disabled={busy || uploading} className="location-title-field"><legend>Assigned titles ({value.assignments.length})</legend>
@@ -127,5 +116,6 @@ function LocationEditor({ initial, titles, onClose, onSaved }: { initial: Locati
       {error && <p className="location-editor-error" role="alert">{error}</p>}
       <footer><button type="button" className="btn btn-dark" disabled={busy || uploading} onClick={onClose}>Cancel</button><button type="submit" className="btn btn-primary" disabled={busy || uploading}>{busy ? 'Saving…' : 'Save location'}</button></footer>
     </form>
+    <UploadDialog open={uploading} title="Upload location image" accept="image/*" onClose={() => setUploading(false)} onUploaded={(url) => { setValue(current => ({ ...current, file_url: url })); setUploading(false) }} />
   </dialog>
 }
