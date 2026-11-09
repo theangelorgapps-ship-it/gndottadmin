@@ -2,6 +2,7 @@ import { betterAuth, type BetterAuthOptions } from 'better-auth'
 import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api'
 import { emailOTP } from 'better-auth/plugins'
 import bcrypt from 'bcryptjs'
+import { workspaceRoleFor } from './workspace-role'
 
 export type AuthRealm = 'viewer' | 'admin'
 export type AuthDatabase = { prepare(sql: string): { bind(...values: unknown[]): { first<T = any>(): Promise<T | null>; all(): Promise<{ results?: any[] }>; run(): Promise<unknown> } } }
@@ -12,11 +13,7 @@ export const cookieName = (realm: AuthRealm, secure: boolean) => `${secure ? '__
 export async function eligibleUser(db: AuthDatabase, id: string | number, realm: AuthRealm) {
   const row = await db.prepare('SELECT id,email,first_name,last_name,status,is_banned,deleted_at,user_type FROM users WHERE id=?').bind(Number(id)).first<any>()
   if (!row || row.deleted_at != null || Number(row.status) !== 1 || Number(row.is_banned ?? 0) !== 0) return null
-  if (realm === 'admin' && !['admin', 'demo_admin'].includes(row.user_type)) {
-    const assigned = await db.prepare(`SELECT 1 FROM live_chat_moderators m JOIN live_tv_channel c ON c.id=m.channel_id
-      WHERE m.user_id=? AND c.deleted_at IS NULL LIMIT 1`).bind(Number(row.id)).first()
-    if (!assigned) return null
-  }
+  if (realm === 'admin' && !await workspaceRoleFor(db, row)) return null
   const duplicates = await db.prepare('SELECT COUNT(*) AS n FROM users WHERE LOWER(TRIM(email))=?').bind(String(row.email).trim().toLowerCase()).first<{ n: number }>()
   return duplicates?.n === 1 ? row : null
 }

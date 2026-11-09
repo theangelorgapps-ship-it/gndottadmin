@@ -3,8 +3,9 @@ import { getRequest, setResponseHeader } from '@tanstack/react-start/server'
 import { env } from 'cloudflare:workers'
 import { getSession } from './session.server'
 import { all, first } from './db'
+import { workspaceRoleFor, type WorkspaceRole } from './workspace-role'
 
-type WorkspaceUser = { id: number; email: string; first_name: string | null; last_name: string | null; user_type: string; workspaceRole: 'admin' | 'moderator' }
+type WorkspaceUser = { id: number; email: string; first_name: string | null; last_name: string | null; user_type: string; workspaceRole: WorkspaceRole }
 const positiveId = (value: unknown) => {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) throw new Error('Choose a valid channel or message.')
   return value
@@ -21,10 +22,8 @@ async function workspaceUser(): Promise<WorkspaceUser | null> {
   const user = await first<Omit<WorkspaceUser, 'workspaceRole'>>(`SELECT id,email,first_name,last_name,user_type FROM users
     WHERE id=? AND status=1 AND deleted_at IS NULL AND COALESCE(is_banned,0)=0`, session.uid)
   if (!user) return null
-  if (['admin', 'demo_admin'].includes(user.user_type)) return { ...user, workspaceRole: 'admin' }
-  const assignment = await first(`SELECT 1 FROM live_chat_moderators m JOIN live_tv_channel c ON c.id=m.channel_id
-    WHERE m.user_id=? AND c.deleted_at IS NULL LIMIT 1`, user.id)
-  return assignment ? { ...user, workspaceRole: 'moderator' } : null
+  const workspaceRole = await workspaceRoleFor((env as any).DB, user)
+  return workspaceRole ? { ...user, workspaceRole } : null
 }
 async function requireWorkspace(write = false) {
   const user = await workspaceUser()

@@ -43,7 +43,9 @@ const mocks = {
  'cloudflare:workers':{env:{DB:d1}}, './session.server':{getSession:async()=>session}, './db':database,
 }
 function load(file, replacements) { const module={exports:{}};vm.runInNewContext(ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,{module,exports:module.exports,require:n=>n in replacements?replacements[n]:require(n),URL,console});return module.exports }
-const auth=load('src/lib/better-auth-core.ts',{'better-auth':{},'better-auth/api':{},'better-auth/plugins':{},'bcryptjs':{}})
+const rolePolicy=load('src/lib/workspace-role.ts',{})
+mocks['./workspace-role']=rolePolicy
+const auth=load('src/lib/better-auth-core.ts',{'better-auth':{},'better-auth/api':{},'better-auth/plugins':{},'bcryptjs':{},'./workspace-role':rolePolicy})
 const admin=load('src/lib/admin.ts',{...mocks,'@tanstack/react-start':{createServerFn:factory,createServerOnlyFn:fn=>fn},'./live-sources':{},'./rich-text':{},'./series-validation':{},'./bunny':{},'./banner-design':{},'./locations-validation':{}})
 const module={exports:{}}
 vm.runInNewContext(ts.transpileModule(readFileSync('src/lib/live-moderation.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module,exports:module.exports,require:n=>n in mocks?mocks[n]:require(n),URL,console})
@@ -58,6 +60,10 @@ await api.setLiveModerator({data:{channelId:10,email:' MOD@example.test ',enable
 assert.equal(sql.prepare('SELECT COUNT(*) n FROM live_chat_moderators').get().n,1)
 session={uid:2};assert.equal((await api.getWorkspaceSession()).workspaceRole,'moderator')
 assert.equal((await auth.eligibleUser(d1,2,'admin')).id,2)
+sql.exec("UPDATE live_tv_channel SET deleted_at=CURRENT_TIMESTAMP WHERE id=10")
+assert.equal(await auth.eligibleUser(d1,2,'admin'),null,'Deleted channels cannot grant monitoring sign-in')
+assert.equal(await api.getWorkspaceSession(),null,'Workspace eligibility shares the sign-in channel policy')
+sql.exec('UPDATE live_tv_channel SET deleted_at=NULL WHERE id=10')
 assert.equal(await admin.getAdminSession(),null)
 await assert.rejects(admin.requireAdmin(),/Admin access/)
 await assert.rejects(admin.adminTable({data:{table:'users'}}),/Unauthorized|auth|access/i)

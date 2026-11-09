@@ -29,7 +29,14 @@ const fresh = () => ({
 })
 const states = new Map()
 const apiLog = []
-let failNextRead = false, failNextMutation = false, browser, server
+let failNextRead = false, failNextMutation = false, pendingMutation, browser, server
+function holdNextMutation() {
+  const hold = {}
+  hold.started = new Promise(resolve => { hold.markStarted = resolve })
+  hold.pending = new Promise(resolve => { hold.release = resolve })
+  pendingMutation = hold
+  return hold
+}
 const fixtureState = role => { if (!states.has(role)) states.set(role, fresh()); return states.get(role) }
 const allowedChannels = role => role === 'empty' ? [] : role === 'moderator' ? [channels[1]] : channels
 const delay = duration => new Promise(resolve => setTimeout(resolve, duration))
@@ -80,6 +87,9 @@ try {
         send({ comments, reports: state.reports, moderators: role === 'admin' ? state.moderators : [], history: state.history, nextBefore: data.channelId === 1 && !data.before && !search ? 100 : null, canAssign: role === 'admin', readOnly: role === 'demo' }); return
       }
       if (role === 'demo') { send({ error: 'View only.' }, 403); return }
+      if (pendingMutation && ['update', 'assignment'].includes(operation)) {
+        const hold = pendingMutation; pendingMutation = undefined; hold.markStarted(); await hold.pending
+      }
       if (operation === 'update') {
         if (failNextMutation) { failNextMutation = false; send({ error: 'The moderation change could not be saved. Retry.' }, 503); return }
         const row = [...state.comments, ...state.older].find(item => item.id === data.targetId)
@@ -163,6 +173,36 @@ try {
   await row('Earlier conversation').waitFor()
   assert.equal(apiLog.findLast(call => call.operation === 'feed').data.before, 100)
   await page.getByRole('button', { name: 'Back to latest', exact: true }).click(); await row('Welcome to Channel One').waitFor()
+  // Hold actual fetches open while exercising the rendered pending-action controls.
+  await page.getByRole('searchbox').fill('thoughtful')
+  const pendingPin = holdNextMutation()
+  await row('Welcome to Channel One').getByRole('button', { name: 'Pin', exact: true }).click()
+  await pendingPin.started
+  assert.equal(await page.getByRole('searchbox').isDisabled(), true)
+  assert.equal(await page.getByRole('button', { name: 'Search', exact: true }).isDisabled(), true)
+  assert.equal(await page.getByRole('combobox', { name: 'Channel', exact: true }).isDisabled(), true)
+  assert.equal(await page.getByRole('button', { name: 'Older messages', exact: true }).isDisabled(), true)
+  const beforePendingSubmit = apiLog.filter(call => call.operation === 'feed').length
+  await page.locator('.moderation-search').evaluate(form => form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
+  await page.getByRole('button', { name: 'Older messages', exact: true }).evaluate(button => button.click())
+  assert.equal(apiLog.filter(call => call.operation === 'feed').length, beforePendingSubmit, 'Pending mutations must not launch a different search/page')
+  pendingPin.release()
+  await page.waitForFunction(() => !document.querySelector('.moderation-search input').disabled)
+  assert.equal(apiLog.findLast(call => call.operation === 'feed').data.search, '')
+  await row('Welcome to Channel One').getByRole('button', { name: 'Unpin', exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  await row('Welcome to Channel One').waitFor({ state: 'detached' }); await row('A thoughtful discussion for everyone.').waitFor()
+  await page.getByRole('searchbox').fill(''); await page.getByRole('searchbox').press('Enter')
+  await page.getByRole('button', { name: 'Older messages', exact: true }).click(); await row('Earlier conversation').waitFor()
+  const pendingOlderPin = holdNextMutation()
+  await row('Earlier conversation').getByRole('button', { name: 'Pin', exact: true }).click(); await pendingOlderPin.started
+  assert.equal(await page.getByRole('button', { name: 'Back to latest', exact: true }).isDisabled(), true)
+  await page.getByRole('button', { name: 'Back to latest', exact: true }).evaluate(button => button.click())
+  pendingOlderPin.release()
+  await page.waitForFunction(() => !document.querySelector('.moderation-search input').disabled)
+  assert.equal(apiLog.findLast(call => call.operation === 'feed').data.before, 100)
+  await row('Earlier conversation').getByRole('button', { name: 'Unpin', exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Back to latest', exact: true }).click(); await row('Welcome to Channel One').waitFor()
   await page.getByRole('tab', { name: 'Reports (2)', exact: true }).click()
   await page.locator('article').filter({ hasText: 'Harassment' }).getByRole('button', { name: 'Resolve', exact: true }).click()
   await page.getByRole('tab', { name: 'Reports (1)', exact: true }).waitFor()
@@ -175,7 +215,15 @@ try {
   await page.getByRole('alert').filter({ hasText: 'existing active account' }).waitFor()
   assert.equal(await page.getByText('New Moderator', { exact: true }).count(), 0)
   await page.getByRole('textbox', { name: 'Existing account email', exact: true }).fill('new.mod@example.test')
+  const pendingAssignment = holdNextMutation()
   await page.getByRole('button', { name: 'Add moderator', exact: true }).click()
+  await pendingAssignment.started
+  await page.getByRole('tab', { name: 'Messages', exact: true }).click()
+  assert.equal(await page.getByRole('searchbox').isDisabled(), true)
+  assert.equal(await page.getByRole('button', { name: 'Older messages', exact: true }).isDisabled(), true)
+  pendingAssignment.release()
+  await page.waitForFunction(() => !document.querySelector('.moderation-search input').disabled)
+  await page.getByRole('tab', { name: 'Moderators', exact: true }).click()
   await page.getByText('New Moderator', { exact: true }).waitFor()
   assert.deepEqual(apiLog.findLast(call => call.operation === 'assignment').data, { channelId: 1, email: 'new.mod@example.test', enabled: true })
   await page.locator('.moderation-team li').filter({ hasText: 'new.mod@example.test' }).getByRole('button', { name: 'Remove', exact: true }).click()
@@ -233,7 +281,7 @@ try {
   assert.deepEqual(errors, [], 'React must not raise runtime errors')
   assert.deepEqual(externalRequests, [], 'The fixture must make no external network requests')
   assert.deepEqual(defects, [], 'Responsive interaction regressions')
-  console.log(`LIVE_MODERATION_BROWSER_OK: actual React + confirmation UI; keyboard tabs, channel/search/pagination, cancelled/approved delete, restore/pin/restrict, reports, errors/retry, admin assignment/revoke, activity, stale-response isolation, 1280/390/320 layouts, restricted/demo/empty views; ${apiLog.length} localhost-only API calls. Screenshots: ${artifacts}`)
+  console.log(`LIVE_MODERATION_BROWSER_OK: actual React + confirmation UI; keyboard tabs, channel/search/pagination, pending mutation/assignment search and page locks, cancelled/approved delete, restore/pin/restrict, reports, errors/retry, admin assignment/revoke, activity, stale-response isolation, 1280/390/320 layouts, restricted/demo/empty views; ${apiLog.length} localhost-only API calls. Screenshots: ${artifacts}`)
 } finally {
   clearTimeout(hardDeadline)
   await browser?.close()
