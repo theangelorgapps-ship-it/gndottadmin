@@ -93,7 +93,7 @@ try {
   database.exec(`
     CREATE TABLE users(id INTEGER PRIMARY KEY,email TEXT,user_type TEXT,status INTEGER,is_banned INTEGER,deleted_at TEXT);
     INSERT INTO users VALUES (1,'admin@example.test','admin',1,0,NULL),(2,'viewer@example.test','user',1,0,NULL),(3,'demo@example.test','demo_admin',1,0,NULL),(4,'inactive@example.test','admin',0,0,NULL),(5,'banned@example.test','admin',1,1,NULL),(6,'deleted@example.test','admin',1,0,'2026-01-01');
-    CREATE TABLE genres(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT,slug TEXT,status INTEGER,poster_url TEXT,deleted_at TEXT,created_at TEXT,updated_at TEXT);
+    CREATE TABLE genres(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT,slug TEXT,status INTEGER,file_url TEXT,deleted_at TEXT,created_at TEXT,updated_at TEXT);
     CREATE TABLE entertainment_gener_mapping(entertainment_id INTEGER,genre_id INTEGER,created_at TEXT,updated_at TEXT,deleted_at TEXT);
     CREATE TABLE cast_crew(id INTEGER PRIMARY KEY,name TEXT,type TEXT,deleted_at TEXT);
     CREATE TABLE entertainment_talent_mapping(entertainment_id INTEGER,talent_id INTEGER,type TEXT,deleted_at TEXT,created_at TEXT,updated_at TEXT);
@@ -211,14 +211,14 @@ try {
   assert.ok((await admin.adminHeroBanners()).length > 0, 'Demo role retains read-only access')
   session = { uid: 1 }
 
-  // Categories use the existing poster_url DB column while the editor receives file_url.
+  // Categories use the migrated file_url column end-to-end (confirmed by live PRAGMA).
   const category = await admin.adminUpsertGenre({ data: { name: 'Test category', status: 1, file_url: '/media/category.avif' } })
-  assert.equal(database.prepare('SELECT poster_url FROM genres WHERE id=?').get(category.id).poster_url, '/media/category.avif')
+  assert.equal(database.prepare('SELECT file_url FROM genres WHERE id=?').get(category.id).file_url, '/media/category.avif')
   assert.equal((await admin.adminListGenres()).find(row => row.id === category.id).file_url, '/media/category.avif')
   await admin.adminUpsertGenre({ data: { id: category.id, name: 'Renamed category', status: 1 } })
-  assert.equal(database.prepare('SELECT poster_url FROM genres WHERE id=?').get(category.id).poster_url, '/media/category.avif')
+  assert.equal(database.prepare('SELECT file_url FROM genres WHERE id=?').get(category.id).file_url, '/media/category.avif')
   await admin.adminUpsertGenre({ data: { id: category.id, name: 'Renamed category', status: 1, file_url: '' } })
-  assert.equal(database.prepare('SELECT poster_url FROM genres WHERE id=?').get(category.id).poster_url, '')
+  assert.equal(database.prepare('SELECT file_url FROM genres WHERE id=?').get(category.id).file_url, '')
   await assert.rejects(() => admin.adminUpsertGenre({ data: { id: category.id, name: 'Invalid', file_url: 'javascript:alert(1)' } }))
   const listVideo = (await admin.adminListVideos()).find(row => row.id === 1)
   assert.equal(listVideo.poster_url, '/media/video-1.avif')

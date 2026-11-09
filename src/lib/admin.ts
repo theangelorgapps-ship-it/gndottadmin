@@ -511,7 +511,7 @@ export const adminDeleteChannel = createServerFn({ method: 'POST' })
 export const adminListGenres = createServerFn({ method: 'GET' }).handler(async () => {
   await requireAdmin()
   return all(
-    `SELECT g.id, g.name, g.slug, g.status, g.poster_url AS file_url,
+    `SELECT g.id, g.name, g.slug, g.status, g.file_url,
             (SELECT COUNT(*) FROM entertainment_gener_mapping m WHERE m.genre_id = g.id) AS titles
      FROM genres g WHERE g.deleted_at IS NULL ORDER BY g.name`,
   )
@@ -526,13 +526,13 @@ export const adminUpsertGenre = createServerFn({ method: 'POST' })
     const slug = data.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
     if (data.id) {
       await run(
-        `UPDATE genres SET name=?, slug=?, status=?, poster_url=CASE WHEN ? THEN ? ELSE poster_url END, updated_at=datetime('now') WHERE id=? AND deleted_at IS NULL`,
+        `UPDATE genres SET name=?, slug=?, status=?, file_url=CASE WHEN ? THEN ? ELSE file_url END, updated_at=datetime('now') WHERE id=? AND deleted_at IS NULL`,
         data.name.trim(), slug, data.status ?? 1, image !== undefined ? 1 : 0, image ?? null, data.id,
       )
       return { ok: true, id: data.id }
     }
     const res = await run(
-      `INSERT INTO genres (name, slug, status, poster_url, created_at, updated_at) VALUES (?,?,?,?,datetime('now'),datetime('now'))`,
+      `INSERT INTO genres (name, slug, status, file_url, created_at, updated_at) VALUES (?,?,?,?,datetime('now'),datetime('now'))`,
       data.name.trim(), slug, data.status ?? 1, image ?? null,
     )
     return { ok: true, id: (res as any)?.meta?.last_row_id ?? null }
