@@ -123,7 +123,7 @@ export function CrudTable({
           if (value !== null && !Number.isFinite(value)) throw new Error(`${field.label} must be a number.`)
         }
         if (field.type === 'select' && value != null && value !== '' && !fieldOptions(field, editing).some(option => String(option.value) === String(value))) throw new Error(`Choose a valid ${field.label.toLowerCase()}.`)
-        if (field.type === 'toggle') value = value ? 1 : 0
+        if (field.type === 'toggle') value = Number(value) === 1 ? 1 : 0
         values[field.key] = value
       }
       await adminUpsertRow({ data: { entity, id: editing.id, values } })
