@@ -213,9 +213,11 @@ export const adminListContent = createServerFn({ method: 'GET' })
     await requireAdmin()
     return all(
       `SELECT e.id, e.name, e.type, e.release_date, e.language, e.movie_access, e.content_rating, e.poster_url, e.thumbnail_url,
-              e.IMDb_rating, e.duration, e.status, e.created_at,
+              e.IMDb_rating, e.duration, e.status, e.created_at, j.phase AS ingest_phase, j.progress AS ingest_progress,
               (SELECT COUNT(*) FROM entertainment_views v WHERE v.entertainment_id = e.id) AS views
-       FROM entertainments e WHERE e.type = ? AND e.deleted_at IS NULL ORDER BY e.id DESC`,
+       FROM entertainments e
+       LEFT JOIN media_ingest_jobs j ON j.content_table = 'entertainments' AND j.content_id = e.id AND j.phase IN ('fetching', 'transcoding')
+       WHERE e.type = ? AND e.deleted_at IS NULL ORDER BY e.id DESC`,
       type,
     )
   })
@@ -401,8 +403,11 @@ export const adminDeleteContent = createServerFn({ method: 'POST' })
 export const adminListVideos = createServerFn({ method: 'GET' }).handler(async () => {
   await requireAdmin()
   return all(
-    `SELECT id, name, release_date, duration, IMDb_rating, status, created_at, poster_url, thumbnail_url
-     FROM videos WHERE deleted_at IS NULL ORDER BY id DESC`,
+    `SELECT v.id, v.name, v.release_date, v.duration, v.IMDb_rating, v.status, v.created_at, v.poster_url, v.thumbnail_url,
+            j.phase AS ingest_phase, j.progress AS ingest_progress
+     FROM videos v
+     LEFT JOIN media_ingest_jobs j ON j.content_table = 'videos' AND j.content_id = v.id AND j.phase IN ('fetching', 'transcoding')
+     WHERE v.deleted_at IS NULL ORDER BY v.id DESC`,
   )
 })
 
@@ -735,8 +740,8 @@ const ADMIN_TABLES: Record<string, string> = {
   seasons: `SELECT s.id, s.name, s.poster_url, s.status, e.name AS show FROM seasons s LEFT JOIN entertainments e ON e.id = s.entertainment_id WHERE s.deleted_at IS NULL ORDER BY s.id DESC LIMIT 300`,
   series: `SELECT s.id, s.name, s.season_number, s.poster_url, s.status, e.name AS show FROM seasons s JOIN entertainments e ON e.id = s.entertainment_id WHERE e.type = 'tvshow' AND e.deleted_at IS NULL AND s.deleted_at IS NULL ORDER BY e.name, COALESCE(s.season_number, CAST(s.season_index AS INTEGER)), s.id`,
   'teaching-volumes': `SELECT s.id, s.name, s.season_number, s.poster_url, s.status, e.name AS show FROM seasons s JOIN entertainments e ON e.id = s.entertainment_id WHERE e.type = 'teaching' AND e.deleted_at IS NULL AND s.deleted_at IS NULL ORDER BY e.name, COALESCE(s.season_number, CAST(s.season_index AS INTEGER)), s.id`,
-  episodes: `SELECT ep.id, ep.name, ep.poster_url, ep.status, ep.duration, e.name AS show, s.name AS season FROM episodes ep LEFT JOIN entertainments e ON e.id = ep.entertainment_id AND e.type = 'tvshow' LEFT JOIN seasons s ON s.id = ep.season_id WHERE ep.deleted_at IS NULL AND e.deleted_at IS NULL AND e.id IS NOT NULL ORDER BY ep.id DESC LIMIT 300`,
-  'teaching-episodes': `SELECT ep.id, ep.name, ep.poster_url, ep.status, ep.duration, e.name AS show, s.name AS season FROM episodes ep LEFT JOIN entertainments e ON e.id = ep.entertainment_id AND e.type = 'teaching' LEFT JOIN seasons s ON s.id = ep.season_id WHERE ep.deleted_at IS NULL AND e.deleted_at IS NULL AND e.id IS NOT NULL ORDER BY ep.id DESC LIMIT 300`,
+  episodes: `SELECT ep.id, ep.name, ep.poster_url, ep.status, ep.duration, e.name AS show, s.name AS season, j.phase AS ingest_phase, j.progress AS ingest_progress FROM episodes ep LEFT JOIN entertainments e ON e.id = ep.entertainment_id AND e.type = 'tvshow' LEFT JOIN seasons s ON s.id = ep.season_id LEFT JOIN media_ingest_jobs j ON j.content_table = 'episodes' AND j.content_id = ep.id AND j.phase IN ('fetching', 'transcoding') WHERE ep.deleted_at IS NULL AND e.deleted_at IS NULL AND e.id IS NOT NULL ORDER BY ep.id DESC LIMIT 300`,
+  'teaching-episodes': `SELECT ep.id, ep.name, ep.poster_url, ep.status, ep.duration, e.name AS show, s.name AS season, j.phase AS ingest_phase, j.progress AS ingest_progress FROM episodes ep LEFT JOIN entertainments e ON e.id = ep.entertainment_id AND e.type = 'teaching' LEFT JOIN seasons s ON s.id = ep.season_id LEFT JOIN media_ingest_jobs j ON j.content_table = 'episodes' AND j.content_id = ep.id AND j.phase IN ('fetching', 'transcoding') WHERE ep.deleted_at IS NULL AND e.deleted_at IS NULL AND e.id IS NOT NULL ORDER BY ep.id DESC LIMIT 300`,
   'tv-category': `SELECT id, name, file_url, status FROM live_tv_category WHERE deleted_at IS NULL ORDER BY name`,
   actors: `SELECT c.id, c.name, c.file_url, c.designation, c.status FROM cast_crew c WHERE c.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM locations l WHERE l.source_cast_crew_id = c.id) ORDER BY c.id LIMIT 500`,
   directors: `SELECT c.id, c.name, c.file_url, c.designation, c.status FROM cast_crew c WHERE c.type = 'director' AND c.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM locations l WHERE l.source_cast_crew_id = c.id) ORDER BY c.id LIMIT 500`,

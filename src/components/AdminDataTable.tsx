@@ -59,6 +59,13 @@ export function renderDataCell(r: any, c: DataCol) {
             {r.release_date ? (
               <div className="mt-0.5 text-xs text-muted-foreground">{String(r.release_date).slice(0, 10)}</div>
             ) : null}
+            {r.ingest_phase ? (
+              <div className="mt-1">
+                <span className="pill info">
+                  {r.ingest_phase === 'transcoding' ? `Transcoding ${Math.round(Number(r.ingest_progress) || 0)}%` : 'Fetching…'}
+                </span>
+              </div>
+            ) : null}
           </div>
         </div>
       )
