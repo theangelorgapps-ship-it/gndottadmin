@@ -4,7 +4,7 @@ import { ChevronDown, ExternalLink, LogOut, Settings, ShieldCheck } from 'lucide
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 import { logout } from '../lib/api'
 
-type AdminProfile = { email: string; first_name?: string | null; last_name?: string | null; user_type?: string }
+type AdminProfile = { email: string; first_name?: string | null; last_name?: string | null; user_type?: string; workspaceRole?: 'admin' | 'moderator' }
 
 export function AdminProfileMenu({ admin }: { admin: AdminProfile }) {
   const [open, setOpen] = useState(false)
@@ -32,9 +32,9 @@ export function AdminProfileMenu({ admin }: { admin: AdminProfile }) {
         <ChevronDown size={14} aria-hidden="true" />
       </button>
     </PopoverTrigger>
-    <PopoverContent align="end" className="admin-profile-popover" aria-label="Administrator account">
-      <div className="admin-profile-identity"><strong>{name}</strong><span>{admin.email}</span><small><ShieldCheck size={14} aria-hidden="true" />{admin.user_type === 'demo_admin' ? 'Demo administrator · read only' : 'Administrator'}</small></div>
-      <Link to="/admin/settings" search={{ section: 'sign-in' }} onClick={() => setOpen(false)} className="admin-profile-action"><Settings size={17} aria-hidden="true" />Account settings</Link>
+    <PopoverContent align="end" className="admin-profile-popover workspace-profile" aria-label="Workspace account">
+      <div className="admin-profile-identity"><strong>{name}</strong><span>{admin.email}</span><small><ShieldCheck size={14} aria-hidden="true" />{admin.workspaceRole === 'moderator' ? 'Channel moderator' : admin.user_type === 'demo_admin' ? 'Demo administrator · read only' : 'Administrator'}</small></div>
+      {admin.workspaceRole !== 'moderator' && <Link to="/admin/settings" search={{ section: 'sign-in' }} onClick={() => setOpen(false)} className="admin-profile-action"><Settings size={17} aria-hidden="true" />Account settings</Link>}
       <a href="https://halobox.tv" target="_blank" rel="noreferrer" className="admin-profile-action"><ExternalLink size={17} aria-hidden="true" />Open Halobox</a>
       <button type="button" disabled={busy} onClick={signOut} className="admin-profile-action"><LogOut size={17} aria-hidden="true" />{busy ? 'Signing out…' : 'Sign out'}</button>
       {error && <p className="error" role="alert">{error}</p>}

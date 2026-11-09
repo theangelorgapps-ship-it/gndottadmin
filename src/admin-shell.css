@@ -1,0 +1,75 @@
+/* The workspace uses the public Halobox mark with a black/navy and blue palette. */
+.halobox-workspace {
+  --background: #080c14;
+  --card: #101827;
+  --secondary: #162139;
+  --primary: #8caaff;
+  --primary-hover: #abc0ff;
+  --primary-foreground: #08132f;
+  --ring: #a8bdff;
+  --border: #26334b;
+  --input: #2b3b57;
+  --muted-foreground: #a0aec5;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
+}
+.halobox-workspace .admin-sidebar { background: #080c14; border-color: #1c2639; }
+.halobox-workspace .brand-copy small { color: #a4b9ee; }
+.halobox-workspace .sidebar-link[data-active="true"],
+.halobox-workspace .sidebar-link[data-current="true"] { background: #263d6a55; color: #cedaff; border-color: #789fff44; }
+.halobox-workspace .sidebar-link:hover { background: #19263d; }
+.halobox-workspace .sidebar-link-icon svg { width: 1.125rem; height: 1.125rem; }
+.halobox-workspace .btn-primary { background-color: #91afff; border-color: #b9ccff; color: #08132f; }
+.halobox-workspace .btn:hover:not(:disabled), .halobox-workspace .admin-profile-trigger:hover { border-color: #91afff80; }
+.halobox-workspace .admin-profile-trigger .topbar-avatar { background: #172747; border-color: #354e7f; color: #c0d1ff; }
+.halobox-workspace .admin-route-progress { background: #809eff22; }
+.halobox-workspace .admin-route-progress::after { background: #9fb7ff; }
+.halobox-workspace .admin-body { background: #0e1522; min-height: 100dvh; }
+.halobox-workspace .admin-topbar { position: static; min-height: 4rem; padding: .7rem 1.5rem; background: #0e1522; border-bottom-color: #ffffff0d; }
+.halobox-workspace .admin-main { max-width: none; min-height: 30rem; outline: none; }
+.halobox-workspace .workspace-tab-panel { min-width: 0; }
+.workspace-tabs-bar { display: flex; align-items: end; min-width: 0; gap: .25rem; background: #080c14; padding: .65rem .6rem 0; }
+.workspace-tabs-scroll { min-width: 0; flex: 1; overflow-x: auto; scrollbar-width: thin; scrollbar-color: #3e5277 transparent; }
+.workspace-tabs { display: flex; align-items: end; gap: .2rem; width: max-content; min-width: 100%; margin: 0; padding: 0; list-style: none; }
+.workspace-tab { position: relative; display: flex; align-items: center; flex: 0 0 auto; gap: .1rem; width: 13rem; max-width: 52vw; min-height: 2.85rem; border: 1px solid transparent; border-bottom: 0; border-radius: .8rem .8rem 0 0; color: #a0aec5; background: #080c14; }
+.workspace-tab[data-active="true"] { color: #e3eaff; background: #0e1522; border-color: #26334b; }
+.workspace-tab[data-active="true"]::before { content: ''; position: absolute; top: 0; left: .8rem; right: .8rem; height: 2px; background: #9db7ff; border-radius: 2px; }
+.workspace-tab:not([data-active="true"]):hover { background: #121b2b; }
+.workspace-tab-link { display: flex; align-items: center; gap: .5rem; min-width: 0; flex: 1; align-self: stretch; padding: .6rem .1rem .6rem .65rem; border-radius: .6rem; font-size: .8rem; font-weight: 550; }
+.workspace-tab-link > span:last-child { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.workspace-tab-link svg { width: 1rem; height: 1rem; flex: 0 0 auto; }
+.workspace-tab-link:focus-visible { outline-offset: -3px; }
+.workspace-tab-drag, .workspace-tab-close, .workspace-tab-action { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; border: 0; background: transparent; color: inherit; border-radius: .45rem; padding: 0; cursor: pointer; }
+.workspace-tab-drag { width: 1.2rem; height: 2.35rem; cursor: grab; touch-action: none; opacity: .6; }
+.workspace-tab-drag:active { cursor: grabbing; }
+.workspace-tab-drag svg { width: .85rem; height: .85rem; }
+.workspace-tab-close { width: 1.7rem; height: 2.35rem; margin-right: .15rem; }
+.workspace-tab-close svg { width: .85rem; height: .85rem; }
+.workspace-tab-close:disabled { opacity: .3; }
+.workspace-tab-action { width: 2.6rem; height: 2.6rem; margin-bottom: .1rem; color: #b4c2de; }
+.workspace-tab-action svg { width: 1.1rem; height: 1.1rem; }
+.workspace-tab-action:hover, .workspace-tab-close:not(:disabled):hover, .workspace-tab-drag:hover { background: #91afff1c; color: #e3eaff; }
+.workspace-tab-menu { z-index: 80; width: 17rem; max-width: calc(100vw - 1.5rem); max-height: min(70dvh,32rem); overflow-y: auto; color: #e3eaff; border: 1px solid #344564; background: #101827; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.workspace-tab-menu [role="menuitem"] { display: flex; align-items: center; gap: .65rem; min-height: 2.6rem; padding: .6rem .75rem; border-radius: .4rem; cursor: pointer; outline: none; }
+.workspace-tab-menu [role="menuitem"] svg { width: 1rem; height: 1rem; flex: 0 0 auto; }
+.workspace-tab-menu [role="menuitem"][data-highlighted] { background: #20365a; }
+.workspace-tab-menu [role="menuitem"][data-disabled] { opacity: .4; pointer-events: none; }
+.workspace-tab-menu-label { padding: .65rem .75rem .4rem; color: #9eafd1; font-size: .7rem; font-weight: 600; }
+.workspace-tab-error { margin: .5rem 1.5rem 0; color: #fda4af; }
+.workspace-tab-hint { margin: .5rem .75rem; color: #a0aec5; font-size: .7rem; line-height: 1.5; }
+.admin-profile-popover.workspace-profile { background: #101827; border-color: #344564; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.workspace-profile .admin-profile-identity small { color: #b5c8ff; }
+.workspace-profile .admin-profile-action:hover, .workspace-profile .admin-profile-action:focus-visible { color: #d3dfff; background: #20365a; }
+@media (max-width: 47.99rem) {
+  .halobox-workspace .sidebar-mobile-bar { min-height: 3.9rem; background: #080c14; }
+  .halobox-workspace .admin-topbar { min-height: 3.75rem; padding: .65rem 1rem; }
+  .halobox-workspace .admin-body { min-height: calc(100dvh - 3.9rem); }
+  .workspace-tabs-bar { padding-top: .45rem; padding-inline: .4rem; }
+  .workspace-tab { width: 11rem; max-width: 55vw; min-height: 2.8rem; }
+  .workspace-tab-close { width: 2rem; height: 2.7rem; }
+  .workspace-tab-action { width: 2.75rem; height: 2.75rem; }
+  .workspace-tab-drag { width: 1.3rem; height: 2.7rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .halobox-workspace *, .halobox-workspace *::after { scroll-behavior: auto; transition-duration: 0s; animation-duration: 0s; }
+}

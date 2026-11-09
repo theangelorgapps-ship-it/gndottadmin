@@ -1,24 +1,28 @@
 import { createFileRoute, Outlet, redirect, useRouterState } from '@tanstack/react-router'
-import React, { useState } from 'react'
+import React from 'react'
 import {
   LayoutDashboard, Library, Tags, Church, Tv, ListVideo, PlaySquare,
   Radio, MonitorPlay, Users, Megaphone, BadgePercent, Crown,
   Layers, SlidersHorizontal, Receipt, TicketPercent, UserRound, Hourglass,
   GraduationCap, Image, Braces, Bell, Settings, FileText, Rocket, Percent, CircleHelp,
-  Languages, Globe, DollarSign, MapPinned, ShieldCheck,
+  Languages, Globe, DollarSign, MapPinned, ShieldCheck, MessagesSquare,
 } from 'lucide-react'
-import { getAdminSession } from '../lib/admin'
-import { Sidebar, SidebarBody, SidebarLink } from '../components/ui/sidebar'
+import { getWorkspaceSession } from '../lib/live-moderation'
+import { SidebarWithTabs } from '../components/ui/sidebar-with-chrome-like-tabs'
 import { ToastProvider } from '../lib/toast'
 import { ConfirmProvider } from '../lib/confirm'
 import { AdminBrand } from '../components/AdminBrand'
 import { AdminProfileMenu } from '../components/AdminProfileMenu'
 import '../admin-polish.css'
+import '../admin-shell.css'
 
 export const Route = createFileRoute('/admin')({
-  beforeLoad: async () => {
-    const admin = await getAdminSession()
+  beforeLoad: async ({ location }) => {
+    const admin = await getWorkspaceSession()
     if (!admin) throw redirect({ to: '/login' })
+    if (admin.workspaceRole === 'moderator' && location.pathname !== '/admin/live-comments') {
+      throw redirect({ href: '/admin/live-comments' })
+    }
     return { admin }
   },
   component: AdminLayout,
@@ -28,7 +32,7 @@ type SideItem = {
   to: string
   label: string
   icon: React.ReactNode
-  children?: { to: string; label: string; icon: React.ReactNode }[]
+  children?: { to: string; label: string; tabLabel?: string; icon: React.ReactNode }[]
 }
 
 const ICON = 'h-[1.125rem] w-[1.125rem] flex-shrink-0'
@@ -40,6 +44,7 @@ const GROUPS: { title: string; items: SideItem[] }[] = [
     items: [
       { to: '/admin', label: 'Dashboard', icon: <LayoutDashboard className={ICON} /> },
       { to: '/admin/media-library', label: 'Media Library', icon: <Library className={ICON} /> },
+      { to: '/admin/live-comments', label: 'Live Comments', icon: <MessagesSquare className={ICON} /> },
     ],
   },
   {
@@ -52,8 +57,8 @@ const GROUPS: { title: string; items: SideItem[] }[] = [
         label: 'Shows',
         icon: <Tv className={ICON} />,
         children: [
-          { to: '/admin/series', label: 'Series', icon: <Layers className={SUB_ICON} /> },
-          { to: '/admin/episodes', label: 'Episodes', icon: <ListVideo className={SUB_ICON} /> },
+          { to: '/admin/series', label: 'Series', tabLabel: 'Show Series', icon: <Layers className={SUB_ICON} /> },
+          { to: '/admin/episodes', label: 'Episodes', tabLabel: 'Show Episodes', icon: <ListVideo className={SUB_ICON} /> },
         ],
       },
       {
@@ -61,8 +66,8 @@ const GROUPS: { title: string; items: SideItem[] }[] = [
         label: 'Teachings',
         icon: <GraduationCap className={ICON} />,
         children: [
-          { to: '/admin/teaching-volumes', label: 'Volumes (Series)', icon: <Layers className={SUB_ICON} /> },
-          { to: '/admin/teaching-episodes', label: 'Episodes', icon: <ListVideo className={SUB_ICON} /> },
+          { to: '/admin/teaching-volumes', label: 'Volumes (Series)', tabLabel: 'Teaching Volumes', icon: <Layers className={SUB_ICON} /> },
+          { to: '/admin/teaching-episodes', label: 'Episodes', tabLabel: 'Teaching Episodes', icon: <ListVideo className={SUB_ICON} /> },
         ],
       },
       { to: '/admin/videos', label: 'Videos', icon: <PlaySquare className={ICON} /> },
@@ -123,81 +128,31 @@ const GROUPS: { title: string; items: SideItem[] }[] = [
   },
 ]
 
-function currentSection(pathname: string) {
-  if (pathname.startsWith('/admin/user/')) return 'Users'
-  for (const group of GROUPS) {
-    for (const item of group.items) {
-      const child = item.children?.find((entry) => entry.to === pathname)
-      if (child) return child.label
-      if (item.to === pathname) return item.label
-    }
-  }
-  return 'Admin workspace'
-}
+const MODERATOR_GROUPS = [{ title: 'Moderation', items: GROUPS[0].items.filter(item => item.to === '/admin/live-comments') }]
 
 function AdminLayout() {
   const { admin } = Route.useRouteContext()
-  const pathname = useRouterState({ select: (state) => state.location.pathname })
-  const [open, setOpen] = useState(true)
-  const section = currentSection(pathname)
   const navigating = useRouterState({ select: (state) => state.isLoading })
+  const moderator = admin.workspaceRole === 'moderator'
 
   return (
     <ToastProvider>
       <ConfirmProvider>
-        <div className="admin-shell admin-polished">
-          <a className="skip-link" href="#main-content">Skip to content</a>
-          <Sidebar open={open} setOpen={setOpen}>
-            <SidebarBody className="admin-sidebar">
-              <AdminBrand />
-              <nav className="admin-nav" aria-label="Admin sections">
-                {GROUPS.map((group) => (
-                  <section className="nav-group" key={group.title} aria-label={group.title}>
-                    <h2 className="side-caption">{group.title}</h2>
-                    {group.items.map((item) => {
-                      const childActive = item.children?.some((child) => pathname === child.to) ?? false
-                      return (
-                        <React.Fragment key={item.to}>
-                          <SidebarLink
-                            link={{ label: item.label, href: item.to, icon: item.icon }}
-                            active={childActive}
-                          />
-                          {item.children?.map((child) => (
-                            <SidebarLink
-                              key={child.to}
-                              link={{ label: child.label, href: child.to, icon: child.icon }}
-                              className="sidebar-sub-link"
-                            />
-                          ))}
-                        </React.Fragment>
-                      )
-                    })}
-                  </section>
-                ))}
-              </nav>
-              <div className="sidebar-account">
+        <SidebarWithTabs
+          key={`${admin.id}:${admin.workspaceRole}`}
+          storageKey={`halobox:workspace-tabs:v1:${admin.id}:${admin.workspaceRole}`}
+          groups={moderator ? MODERATOR_GROUPS : GROUPS}
+          brand={<AdminBrand homeHref={moderator ? '/admin/live-comments' : '/admin'} />}
+          account={<AdminProfileMenu admin={admin} />}
+          navigating={navigating}
+          footer={<div className="sidebar-account">
                 <span className="sidebar-account-icon" aria-hidden="true"><UserRound /></span>
                 <span className="sidebar-account-copy sidebar-label">
-                  <small>Signed in as</small>
+                  <small>{moderator ? 'Channel moderator' : 'Signed in as'}</small>
                   <span title={admin.email}>{admin.email}</span>
                 </span>
-              </div>
-            </SidebarBody>
-          </Sidebar>
-          <div className="admin-body">
-            <header className="admin-topbar">
-              <div className="topbar-context">
-                <span>GoodNews Halobox</span>
-                <strong>{section}</strong>
-              </div>
-              <AdminProfileMenu admin={admin} />
-            </header>
-            {navigating && <div className="admin-route-progress" role="status"><span className="sr-only">Loading page…</span></div>}
-            <main className="admin-main" id="main-content" aria-busy={navigating}>
-              <Outlet />
-            </main>
-          </div>
-        </div>
+              </div>}
+        ><Outlet /></SidebarWithTabs>
       </ConfirmProvider>
     </ToastProvider>
   )

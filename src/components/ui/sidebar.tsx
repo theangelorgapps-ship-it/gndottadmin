@@ -77,10 +77,10 @@ export const Sidebar = ({
   </SidebarProvider>
 )
 
-export const SidebarBody = (props: React.ComponentProps<"div">) => (
+export const SidebarBody = ({ mobileBrand, ...props }: React.ComponentProps<"div"> & { mobileBrand?: React.ReactNode }) => (
   <>
     <DesktopSidebar {...props} />
-    <MobileSidebar {...props} />
+    <MobileSidebar {...props} mobileBrand={mobileBrand} />
   </>
 )
 
@@ -121,8 +121,9 @@ export const MobileSidebar = ({
   className,
   children,
   onClickCapture,
+  mobileBrand,
   ...props
-}: React.ComponentProps<"div">) => {
+}: React.ComponentProps<"div"> & { mobileBrand?: React.ReactNode }) => {
   const { mobileOpen, setMobileOpen } = useSidebar()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
@@ -157,7 +158,7 @@ export const MobileSidebar = ({
   return (
     <div className="sidebar-mobile">
       <div className="sidebar-mobile-bar">
-        <AdminBrand />
+        {mobileBrand ?? <AdminBrand />}
         <button
           ref={menuButtonRef}
           type="button"
@@ -181,7 +182,15 @@ export const MobileSidebar = ({
           event.preventDefault()
           close()
         }}
-        onClose={() => menuButtonRef.current?.focus()}
+        onKeyDown={(event) => {
+          if (event.key !== "Tab") return
+          const focusable = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')).filter(element => element.getClientRects().length > 0)
+          const first = focusable[0]
+          const last = focusable[focusable.length - 1]
+          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
+          else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+        }}
+        onClose={() => { setMobileOpen(false); menuButtonRef.current?.focus() }}
         onMouseDown={(event) => {
           if (event.target === event.currentTarget) close()
         }}

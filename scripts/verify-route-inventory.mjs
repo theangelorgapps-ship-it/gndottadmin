@@ -8,7 +8,7 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const NAV_ROUTES = [
   '/admin', '/admin/media-library', '/admin/genres', '/admin/movies', '/admin/tv-shows',
   '/admin/series', '/admin/episodes', '/admin/teaching', '/admin/teaching-volumes',
-  '/admin/teaching-episodes', '/admin/videos', '/admin/tv-category', '/admin/live-tv',
+  '/admin/teaching-episodes', '/admin/videos', '/admin/tv-category', '/admin/live-tv', '/admin/live-comments',
   '/admin/actors', '/admin/locations', '/admin/vast-ads', '/admin/custom-ads',
   '/admin/subscriptions', '/admin/plans', '/admin/plan-limits', '/admin/rent-history',
   '/admin/coupons', '/admin/users', '/admin/soon-to-expire', '/admin/banners',
@@ -52,20 +52,20 @@ function navigationPaths(source) {
   })
   return paths
 }
-function rendersBrand(source, path) {
+function rendersComponent(source, path, name) {
   let imported = false, rendered = false
   visit(parse(source, path), node => {
-    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) && /(?:^|\/)AdminBrand$/.test(node.moduleSpecifier.text)) {
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
       const bindings = node.importClause?.namedBindings
-      imported ||= Boolean(bindings && ts.isNamedImports(bindings) && bindings.elements.some(item => item.name.text === 'AdminBrand'))
+      imported ||= Boolean(bindings && ts.isNamedImports(bindings) && bindings.elements.some(item => item.name.text === name))
     }
-    if ((ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) && node.tagName.getText() === 'AdminBrand') rendered = true
+    if ((ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) && node.tagName.getText() === name) rendered = true
   })
   return imported && rendered
 }
 
 const visibleAttributes = new Set(['label', 'title', 'group', 'singular', 'empty', 'searchPlaceholder', 'placeholder', 'aria-label', 'alt', 'description', 'approveLabel'])
-const visibleProperties = new Set(['label', 'title', 'description', 'placeholder', 'approveLabel', 'empty'])
+const visibleProperties = new Set(['label', 'tabLabel', 'title', 'description', 'placeholder', 'approveLabel', 'empty'])
 const forbidden = /\b(?:streamit|imdb|reviews?|ratings?|stars?|movies?|tv[\s_-]*shows?|actors?|directors?|cast|genres?)\b|[★☆]/i
 function visibleText(source, path) {
   const file = parse(source, path), values = []
@@ -95,9 +95,9 @@ function verify(sources) {
   const check = (condition, message) => { if (!condition) failures.push(message) }
   const source = path => sources.get(path) ?? ''
   const routeFiles = [...sources.keys()].filter(path => path.startsWith('src/routes/admin/') && /\.tsx?$/.test(path))
-  check(NAV_ROUTES.length === 37, 'Canonical navigation must contain 37 destinations')
-  check(ALL_ROUTES.length === 39 && new Set(ALL_ROUTES).size === 39, 'Canonical admin manifest must contain 39 distinct destinations')
-  check(routeFiles.length === 39, `Expected 39 admin route files, measured ${routeFiles.length}`)
+  check(NAV_ROUTES.length === 38, 'Canonical navigation must contain 38 destinations')
+  check(ALL_ROUTES.length === 40 && new Set(ALL_ROUTES).size === 40, 'Canonical admin manifest must contain 40 distinct destinations')
+  check(routeFiles.length === 40, `Expected 40 admin route files, measured ${routeFiles.length}`)
   const declared = routeFiles.flatMap(path => {
     const paths = fileRoutePaths(source(path), path)
     check(paths.length === 1, `${path} must declare exactly one file route`)
@@ -106,7 +106,8 @@ function verify(sources) {
   checkSet(declared, ALL_ROUTES, 'Source routes', failures)
   checkSet(generatedAdminPaths(source('src/routeTree.gen.ts')), ALL_ROUTES, 'Generated route tree', failures)
   checkSet(navigationPaths(source('src/routes/admin.tsx')), NAV_ROUTES, 'Navigation', failures)
-  for (const path of ['src/routes/admin.tsx', 'src/routes/login.tsx', 'src/components/ui/sidebar.tsx']) check(rendersBrand(source(path), path), `${path} must import and render AdminBrand`)
+  for (const path of ['src/routes/admin.tsx', 'src/routes/login.tsx', 'src/components/ui/sidebar.tsx']) check(rendersComponent(source(path), path, 'AdminBrand'), `${path} must import and render AdminBrand`)
+  check(rendersComponent(source('src/routes/admin.tsx'), 'src/routes/admin.tsx', 'SidebarWithTabs'), 'Admin workspace must import and render SidebarWithTabs')
   const brand = source('src/components/AdminBrand.tsx')
   check(visibleText(brand, 'src/components/AdminBrand.tsx').some(value => value.includes('GoodNews Halobox')) && brand.includes('goodnews-halo-logo.avif'), 'AdminBrand must retain the canonical Halobox name and image')
   check(source('src/routes/__root.tsx').includes('GoodNews Halobox'), 'Document metadata must retain GoodNews Halobox branding')
@@ -125,6 +126,7 @@ const paths = [
   'src/routeTree.gen.ts', 'src/routes/admin.tsx', 'src/routes/login.tsx', 'src/routes/__root.tsx',
   ...walk('src/routes/admin'),
   'src/components/AdminBrand.tsx', 'src/components/AdminProfileMenu.tsx', 'src/components/ui/sidebar.tsx',
+  'src/components/ui/sidebar-with-chrome-like-tabs.tsx',
   'src/components/AdminDataTable.tsx', 'src/components/AdminTable.tsx', 'src/components/CrudTable.tsx',
   'src/components/admin-content.tsx', 'src/components/SeriesAdmin.tsx', 'src/components/Poster.tsx',
   'src/components/UploadDialog.tsx', 'src/components/HeroBannerEditor.tsx', 'src/lib/confirm.tsx', 'src/lib/toast.tsx',
@@ -138,6 +140,7 @@ if (process.argv.includes('--self-test')) {
     ['missing generated route', draft => draft.set('src/routeTree.gen.ts', draft.get('src/routeTree.gen.ts').replaceAll("  '/admin/locations': typeof AdminLocationsRoute\n", '')), 'Generated route tree is missing /admin/locations'],
     ['legacy route leaked into navigation', draft => draft.set('src/routes/admin.tsx', draft.get('src/routes/admin.tsx').replace("to: '/admin/locations'", "to: '/admin/directors'")), 'Navigation contains unexpected /admin/directors'],
     ['missing brand rendering', draft => draft.set('src/routes/login.tsx', draft.get('src/routes/login.tsx').replace('<AdminBrand link={false} />', '<div />')), 'src/routes/login.tsx must import and render AdminBrand'],
+    ['missing tabbed shell rendering', draft => draft.set('src/routes/admin.tsx', draft.get('src/routes/admin.tsx').replace(/<SidebarWithTabs\b/g, '<div')), 'Admin workspace must import and render SidebarWithTabs'],
     ['obsolete vocabulary', draft => draft.set('src/routes/admin/locations.tsx', draft.get('src/routes/admin/locations.tsx').replace('>Locations<', '>Reviews and IMDb ratings<')), 'forbidden visible vocabulary'],
     ['compatibility exception remains narrow', draft => draft.set('src/routes/admin/directors.tsx', draft.get('src/routes/admin/directors.tsx').replace('title="Directors"', 'title="Movie Reviews"')), 'forbidden visible vocabulary'],
   ]
@@ -157,4 +160,4 @@ if (failures.length) {
   for (const failure of failures) console.error(`- ${failure}`)
   process.exit(1)
 }
-console.log(process.argv.includes('--self-test') ? 'ROUTE_INVENTORY_SELF_TEST_OK routes=39 nav=37 controls=7' : 'ROUTE_INVENTORY_OK routes=39 nav=37')
+console.log(process.argv.includes('--self-test') ? 'ROUTE_INVENTORY_SELF_TEST_OK routes=40 nav=38 controls=8' : 'ROUTE_INVENTORY_OK routes=40 nav=38')
