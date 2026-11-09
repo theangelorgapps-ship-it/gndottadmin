@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { authClient } from '../lib/auth-client'
 import { SocialSignIn } from '../components/SocialSignIn'
@@ -22,7 +22,7 @@ export function AuthShell({ children, title }: { children: React.ReactNode; titl
           <div className="auth-heading">
             <p>Content. People. Possibility.</p>
             <h1 id="auth-title">{title}</h1>
-            <span>Sign in to your admin workspace.</span>
+            <span>Sign in to your Halobox workspace.</span>
           </div>
           {children}
         </div>
@@ -35,6 +35,8 @@ export function AuthShell({ children, title }: { children: React.ReactNode; titl
 type LoginMode = 'password' | 'email-code' | 'reset'
 
 function Login() {
+  const [ready, setReady] = useState(false)
+  useEffect(() => setReady(true), [])
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
@@ -57,7 +59,7 @@ function Login() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (busy) return
+    if (busy || !ready) return
     setBusy(true)
     setError(null)
     setMessage(null)
@@ -72,7 +74,7 @@ function Login() {
             : 'Unable to reset your password. Check your code and use 8–72 characters.')
         } else if (!sent) {
           setSent(true)
-          setMessage('If an eligible administrator account matches, a code has been sent. It expires in 5 minutes.')
+          setMessage('If an eligible account matches, a code has been sent. It expires in 5 minutes.')
         } else {
           switchMode('password')
           setMessage('Password updated. Sign in with your new password.')
@@ -87,7 +89,7 @@ function Login() {
       if (res.ok) {
         if (mode === 'email-code' && !sent) {
           setSent(true)
-          setMessage('If an eligible administrator account matches, a code has been sent. It expires in 5 minutes.')
+          setMessage('If an eligible account matches, a code has been sent. It expires in 5 minutes.')
         } else {
           window.location.href = '/admin'
         }
@@ -107,7 +109,8 @@ function Login() {
 
   return (
     <AuthShell title={mode === 'reset' ? 'Reset your password' : 'Welcome back'}>
-      <form onSubmit={onSubmit} aria-busy={busy}>
+      <form method="post" onSubmit={onSubmit} aria-busy={busy || !ready}>
+        <noscript>Enable JavaScript to sign in securely.</noscript>
         <div className="field">
           <label htmlFor="login-email">Email address</label>
           <input
@@ -121,7 +124,7 @@ function Login() {
             autoComplete="email"
             inputMode="email"
             maxLength={254}
-            disabled={busy || sent}
+            disabled={!ready || busy || sent}
             aria-describedby={describedBy}
           />
         </div>
@@ -138,7 +141,7 @@ function Login() {
             autoComplete={mode === 'reset' ? 'new-password' : 'current-password'}
             minLength={mode === 'reset' ? 8 : undefined}
             maxLength={72}
-            disabled={busy}
+            disabled={!ready || busy}
             aria-describedby={describedBy}
           />
           <button
@@ -149,7 +152,7 @@ function Login() {
             aria-pressed={showPw}
             aria-controls="login-password"
             title={showPw ? 'Hide password' : 'Show password'}
-            disabled={busy}
+            disabled={!ready || busy}
           >
             {showPw ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
           </button>
@@ -168,7 +171,7 @@ function Login() {
             value={code}
             onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))}
             required
-            disabled={busy}
+            disabled={!ready || busy}
             aria-describedby={describedBy}
           />
         </div>}
@@ -176,16 +179,16 @@ function Login() {
           <button
             type="button"
             className="btn btn-ghost"
-            disabled={busy}
+            disabled={!ready || busy}
             onClick={() => switchMode(mode === 'password' ? 'email-code' : 'password')}
           >
             {mode === 'password' ? 'Sign in with an email code' : 'Use a password'}
           </button>
-          {mode === 'password' && <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => switchMode('reset')}>Forgot password?</button>}
+          {mode === 'password' && <button type="button" className="btn btn-ghost" disabled={!ready || busy} onClick={() => switchMode('reset')}>Forgot password?</button>}
         </div>
         {error && <div className="error" id="login-error" role="alert">{error}</div>}
         {message && <p id="login-message" role="status">{message}</p>}
-        <button type="submit" className="btn btn-primary auth-btn" disabled={busy}>
+        <button type="submit" className="btn btn-primary auth-btn" disabled={!ready || busy}>
           {busy ? 'Please wait…'
             : mode === 'reset' ? sent ? 'Update password' : 'Send reset code'
             : mode === 'email-code' && !sent ? 'Send sign-in code'

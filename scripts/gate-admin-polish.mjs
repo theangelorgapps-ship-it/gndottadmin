@@ -21,6 +21,25 @@ function load(path, mocks = {}, globals = {}) {
   return exports
 }
 
+// The server-rendered form cannot leak named credentials into a GET URL while
+// JavaScript is downloading. No auth handler or email transport is called.
+const loginRoute = load('src/routes/login.tsx', {
+  '@tanstack/react-router': { createFileRoute: () => config => config },
+  'lucide-react': { Eye: () => null, EyeOff: () => null },
+  '../components/AdminBrand': { AdminBrand: () => null },
+  '../components/SocialSignIn': { SocialSignIn: () => null },
+}).Route
+const React = require('react')
+const { renderToStaticMarkup } = require('react-dom/server')
+const loginMarkup = renderToStaticMarkup(React.createElement(loginRoute.component))
+assert.match(loginMarkup, /<form[^>]*method="post"/)
+for (const field of ['email', 'password']) {
+  const input = loginMarkup.match(new RegExp(`<input[^>]*name="${field}"[^>]*>`))?.[0]
+  assert.ok(input && /disabled=""/.test(input), `${field} stays disabled until hydration`)
+}
+assert.match(loginMarkup, /<button[^>]*type="submit"[^>]*disabled=""/)
+assert.ok(!loginMarkup.includes('method="get"'))
+
 // Exercise the actual image resolver against public, private, migrated, and unknown sources.
 const { img, DEFAULT_IMG } = load('src/components/Poster.tsx')
 assert.equal(img('/media/uploads/new.avif'), 'https://halobox.tv/media/uploads/new.avif')

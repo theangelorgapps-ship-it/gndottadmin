@@ -26,6 +26,7 @@ import { Route as AdminEpisodesRouteImport } from './routes/admin/episodes'
 import { Route as AdminFaqRouteImport } from './routes/admin/faq'
 import { Route as AdminGenresRouteImport } from './routes/admin/genres'
 import { Route as AdminLanguageRouteImport } from './routes/admin/language'
+import { Route as AdminLiveCommentsRouteImport } from './routes/admin/live-comments'
 import { Route as AdminLiveTvRouteImport } from './routes/admin/live-tv'
 import { Route as AdminLocationsRouteImport } from './routes/admin/locations'
 import { Route as AdminMediaLibraryRouteImport } from './routes/admin/media-library'
@@ -140,6 +141,11 @@ const AdminGenresRoute = AdminGenresRouteImport.update({
 const AdminLanguageRoute = AdminLanguageRouteImport.update({
   id: '/language',
   path: '/language',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminLiveCommentsRoute = AdminLiveCommentsRouteImport.update({
+  id: '/live-comments',
+  path: '/live-comments',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminLiveTvRoute = AdminLiveTvRouteImport.update({
@@ -311,6 +317,7 @@ export interface FileRoutesByFullPath {
   '/admin/faq': typeof AdminFaqRoute
   '/admin/genres': typeof AdminGenresRoute
   '/admin/language': typeof AdminLanguageRoute
+  '/admin/live-comments': typeof AdminLiveCommentsRoute
   '/admin/live-tv': typeof AdminLiveTvRoute
   '/admin/locations': typeof AdminLocationsRoute
   '/admin/media-library': typeof AdminMediaLibraryRoute
@@ -359,6 +366,7 @@ export interface FileRoutesByTo {
   '/admin/faq': typeof AdminFaqRoute
   '/admin/genres': typeof AdminGenresRoute
   '/admin/language': typeof AdminLanguageRoute
+  '/admin/live-comments': typeof AdminLiveCommentsRoute
   '/admin/live-tv': typeof AdminLiveTvRoute
   '/admin/locations': typeof AdminLocationsRoute
   '/admin/media-library': typeof AdminMediaLibraryRoute
@@ -409,6 +417,7 @@ export interface FileRoutesById {
   '/admin/faq': typeof AdminFaqRoute
   '/admin/genres': typeof AdminGenresRoute
   '/admin/language': typeof AdminLanguageRoute
+  '/admin/live-comments': typeof AdminLiveCommentsRoute
   '/admin/live-tv': typeof AdminLiveTvRoute
   '/admin/locations': typeof AdminLocationsRoute
   '/admin/media-library': typeof AdminMediaLibraryRoute
@@ -460,6 +469,7 @@ export interface FileRouteTypes {
     | '/admin/faq'
     | '/admin/genres'
     | '/admin/language'
+    | '/admin/live-comments'
     | '/admin/live-tv'
     | '/admin/locations'
     | '/admin/media-library'
@@ -508,6 +518,7 @@ export interface FileRouteTypes {
     | '/admin/faq'
     | '/admin/genres'
     | '/admin/language'
+    | '/admin/live-comments'
     | '/admin/live-tv'
     | '/admin/locations'
     | '/admin/media-library'
@@ -557,6 +568,7 @@ export interface FileRouteTypes {
     | '/admin/faq'
     | '/admin/genres'
     | '/admin/language'
+    | '/admin/live-comments'
     | '/admin/live-tv'
     | '/admin/locations'
     | '/admin/media-library'
@@ -720,6 +732,13 @@ declare module '@tanstack/react-router' {
       path: '/language'
       fullPath: '/admin/language'
       preLoaderRoute: typeof AdminLanguageRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/live-comments': {
+      id: '/admin/live-comments'
+      path: '/live-comments'
+      fullPath: '/admin/live-comments'
+      preLoaderRoute: typeof AdminLiveCommentsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/live-tv': {
@@ -949,6 +968,7 @@ interface AdminRouteChildren {
   AdminFaqRoute: typeof AdminFaqRoute
   AdminGenresRoute: typeof AdminGenresRoute
   AdminLanguageRoute: typeof AdminLanguageRoute
+  AdminLiveCommentsRoute: typeof AdminLiveCommentsRoute
   AdminLiveTvRoute: typeof AdminLiveTvRoute
   AdminLocationsRoute: typeof AdminLocationsRoute
   AdminMediaLibraryRoute: typeof AdminMediaLibraryRoute
@@ -991,6 +1011,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminFaqRoute: AdminFaqRoute,
   AdminGenresRoute: AdminGenresRoute,
   AdminLanguageRoute: AdminLanguageRoute,
+  AdminLiveCommentsRoute: AdminLiveCommentsRoute,
   AdminLiveTvRoute: AdminLiveTvRoute,
   AdminLocationsRoute: AdminLocationsRoute,
   AdminMediaLibraryRoute: AdminMediaLibraryRoute,
