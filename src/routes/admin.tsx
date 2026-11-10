@@ -6,6 +6,7 @@ import {
   Layers, SlidersHorizontal, Receipt, TicketPercent, UserRound, Hourglass,
   GraduationCap, Image, Braces, Bell, Settings, FileText, Rocket, Percent, CircleHelp,
   Languages, Globe, DollarSign, MapPinned, ShieldCheck, MessagesSquare, CloudUpload, FileSpreadsheet,
+  HandHeart,
 } from 'lucide-react'
 import { getWorkspaceSession } from '../lib/live-moderation'
 import { SidebarWithTabs } from '../components/ui/sidebar-with-chrome-like-tabs'
@@ -98,6 +99,7 @@ const GROUPS: { title: string; items: SideItem[] }[] = [
   {
     title: 'Commerce',
     items: [
+      { to: '/admin/giving', label: 'Giving', icon: <HandHeart className={ICON} /> },
       { to: '/admin/subscriptions', label: 'Subscriptions', icon: <Crown className={ICON} /> },
       { to: '/admin/plans', label: 'Plans', icon: <Layers className={ICON} /> },
       { to: '/admin/plan-limits', label: 'Plan Limits', icon: <SlidersHorizontal className={ICON} /> },

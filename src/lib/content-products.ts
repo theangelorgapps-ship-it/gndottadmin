@@ -78,9 +78,14 @@ export const adminAttachContentProduct = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     await requireAdmin()
     const catalogue = await fetchCatalogue()
-    if (!catalogue.some(p => p.id === data.productId)) throw new Error('That product is not sellable through Halobox.')
-    await run(`INSERT INTO content_products(content_type, content_id, product_id, sort) VALUES(?,?,?, COALESCE((SELECT MAX(sort)+1 FROM content_products WHERE content_type=? AND content_id=?), 0)) ON CONFLICT DO NOTHING`,
-      data.contentType, data.contentId, data.productId, data.contentType, data.contentId)
+    const product = catalogue.find(p => p.id === data.productId)
+    if (!product) throw new Error('That product is not sellable through Halobox.')
+    // Snapshot the product onto the mapping: the public player reads D1 only.
+    await run(`INSERT INTO content_products(content_type, content_id, product_id, sort, product_name, product_slug, product_price, product_currency, product_minor_unit, product_image, product_in_stock, snapshot_at)
+      VALUES(?,?,?, COALESCE((SELECT MAX(sort)+1 FROM content_products WHERE content_type=? AND content_id=?), 0), ?,?,?,?,?,?,?, datetime('now'))
+      ON CONFLICT(content_type, content_id, product_id) DO UPDATE SET product_name=excluded.product_name, product_slug=excluded.product_slug, product_price=excluded.product_price, product_currency=excluded.product_currency, product_minor_unit=excluded.product_minor_unit, product_image=excluded.product_image, product_in_stock=excluded.product_in_stock, snapshot_at=excluded.snapshot_at`,
+      data.contentType, data.contentId, data.productId, data.contentType, data.contentId,
+      product.name, product.slug, product.price, product.currency, product.minorUnit, product.image, product.inStock ? 1 : 0)
     return { ok: true }
   })
 

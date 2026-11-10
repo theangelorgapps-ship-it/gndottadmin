@@ -26,6 +26,7 @@ import { Route as AdminDirectorsRouteImport } from './routes/admin/directors'
 import { Route as AdminEpisodesRouteImport } from './routes/admin/episodes'
 import { Route as AdminFaqRouteImport } from './routes/admin/faq'
 import { Route as AdminGenresRouteImport } from './routes/admin/genres'
+import { Route as AdminGivingRouteImport } from './routes/admin/giving'
 import { Route as AdminLanguageRouteImport } from './routes/admin/language'
 import { Route as AdminLiveCommentsRouteImport } from './routes/admin/live-comments'
 import { Route as AdminLiveTvRouteImport } from './routes/admin/live-tv'
@@ -143,6 +144,11 @@ const AdminFaqRoute = AdminFaqRouteImport.update({
 const AdminGenresRoute = AdminGenresRouteImport.update({
   id: '/genres',
   path: '/genres',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminGivingRoute = AdminGivingRouteImport.update({
+  id: '/giving',
+  path: '/giving',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminLanguageRoute = AdminLanguageRouteImport.update({
@@ -329,6 +335,7 @@ export interface FileRoutesByFullPath {
   '/admin/episodes': typeof AdminEpisodesRoute
   '/admin/faq': typeof AdminFaqRoute
   '/admin/genres': typeof AdminGenresRoute
+  '/admin/giving': typeof AdminGivingRoute
   '/admin/language': typeof AdminLanguageRoute
   '/admin/live-comments': typeof AdminLiveCommentsRoute
   '/admin/live-tv': typeof AdminLiveTvRoute
@@ -380,6 +387,7 @@ export interface FileRoutesByTo {
   '/admin/episodes': typeof AdminEpisodesRoute
   '/admin/faq': typeof AdminFaqRoute
   '/admin/genres': typeof AdminGenresRoute
+  '/admin/giving': typeof AdminGivingRoute
   '/admin/language': typeof AdminLanguageRoute
   '/admin/live-comments': typeof AdminLiveCommentsRoute
   '/admin/live-tv': typeof AdminLiveTvRoute
@@ -433,6 +441,7 @@ export interface FileRoutesById {
   '/admin/episodes': typeof AdminEpisodesRoute
   '/admin/faq': typeof AdminFaqRoute
   '/admin/genres': typeof AdminGenresRoute
+  '/admin/giving': typeof AdminGivingRoute
   '/admin/language': typeof AdminLanguageRoute
   '/admin/live-comments': typeof AdminLiveCommentsRoute
   '/admin/live-tv': typeof AdminLiveTvRoute
@@ -487,6 +496,7 @@ export interface FileRouteTypes {
     | '/admin/episodes'
     | '/admin/faq'
     | '/admin/genres'
+    | '/admin/giving'
     | '/admin/language'
     | '/admin/live-comments'
     | '/admin/live-tv'
@@ -538,6 +548,7 @@ export interface FileRouteTypes {
     | '/admin/episodes'
     | '/admin/faq'
     | '/admin/genres'
+    | '/admin/giving'
     | '/admin/language'
     | '/admin/live-comments'
     | '/admin/live-tv'
@@ -590,6 +601,7 @@ export interface FileRouteTypes {
     | '/admin/episodes'
     | '/admin/faq'
     | '/admin/genres'
+    | '/admin/giving'
     | '/admin/language'
     | '/admin/live-comments'
     | '/admin/live-tv'
@@ -756,6 +768,13 @@ declare module '@tanstack/react-router' {
       path: '/genres'
       fullPath: '/admin/genres'
       preLoaderRoute: typeof AdminGenresRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/giving': {
+      id: '/admin/giving'
+      path: '/giving'
+      fullPath: '/admin/giving'
+      preLoaderRoute: typeof AdminGivingRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/language': {
@@ -1006,6 +1025,7 @@ interface AdminRouteChildren {
   AdminEpisodesRoute: typeof AdminEpisodesRoute
   AdminFaqRoute: typeof AdminFaqRoute
   AdminGenresRoute: typeof AdminGenresRoute
+  AdminGivingRoute: typeof AdminGivingRoute
   AdminLanguageRoute: typeof AdminLanguageRoute
   AdminLiveCommentsRoute: typeof AdminLiveCommentsRoute
   AdminLiveTvRoute: typeof AdminLiveTvRoute
@@ -1051,6 +1071,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminEpisodesRoute: AdminEpisodesRoute,
   AdminFaqRoute: AdminFaqRoute,
   AdminGenresRoute: AdminGenresRoute,
+  AdminGivingRoute: AdminGivingRoute,
   AdminLanguageRoute: AdminLanguageRoute,
   AdminLiveCommentsRoute: AdminLiveCommentsRoute,
   AdminLiveTvRoute: AdminLiveTvRoute,
