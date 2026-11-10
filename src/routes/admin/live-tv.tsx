@@ -7,6 +7,7 @@ import { UploadButton } from '../../components/admin-content'
 import { AdminImagePreview } from '../../components/Poster'
 import { RichTextEditor } from '../../components/RichTextEditor'
 import { AdminDataTable } from '../../components/AdminDataTable'
+import { ContentProductsPanel } from '../../components/ContentProductsPanel'
 
 export const Route = createFileRoute('/admin/live-tv')({
   loader: async () => await adminListChannels(),
@@ -239,6 +240,10 @@ function AdminLiveTv() {
               </fieldset>
               <div className="field"><label htmlFor="channel-comments">Live chat</label><select id="channel-comments" value={editing.comments_enabled ? '1' : '0'} disabled={busy} onChange={e => setEditing({ ...editing, comments_enabled: e.target.value === '1' })}><option value="1">Enabled</option><option value="0">Disabled</option></select></div>
               <div className="field"><label htmlFor="channel-slow">Seconds between messages</label><input id="channel-slow" type="number" min={0} max={120} value={editing.slow_mode} disabled={busy} onChange={e => setEditing({ ...editing, slow_mode: Number(e.target.value) })}/></div>
+              <div className="field" style={{ gridColumn: '1 / -1' }}>
+                <label>Products (Recommended Resources)</label>
+                <ContentProductsPanel contentType="live" contentId={editing.id} disabled={busy} />
+              </div>
             </div>
             {error && <div className="error mt-3" role="alert">{error}</div>}
             <div className="modal-actions border-t border-border pt-4">

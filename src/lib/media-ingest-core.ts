@@ -75,8 +75,8 @@ export type IngestStore = {
   insertContent(table: IngestContentTable, data: Record<string, unknown>): Promise<number>
   attachContentGuid(table: IngestContentTable, id: number, guid: string): Promise<void>
   softDeleteContent(table: IngestContentTable, id: number): Promise<void>
-  /** Map genres/personalities (entertainments only) and locations onto a content row. */
-  mapContent(table: IngestContentTable, id: number, maps: { genreIds?: number[]; castIds?: number[]; locationIds?: number[] }): Promise<void>
+  /** Map genres/personalities (entertainments only), locations, and shop products onto a content row. */
+  mapContent(table: IngestContentTable, id: number, maps: { genreIds?: number[]; castIds?: number[]; locationIds?: number[]; productIds?: number[] }): Promise<void>
 }
 
 export type BunnyVideoStatus = {
@@ -112,6 +112,8 @@ export type IngestInput = {
   genreIds?: unknown
   castIds?: unknown
   locationIds?: unknown
+  /** Shop product IDs (WooCommerce) for the Recommended Resources expander. */
+  productIds?: unknown
 }
 
 function slugify(title: string): string {
@@ -144,6 +146,7 @@ export async function createIngestJob(store: IngestStore, bunny: BunnyClient, in
   const genreIds = idList(input.genreIds, 'categories')
   const castIds = idList(input.castIds, 'personalities')
   const locationIds = idList(input.locationIds, 'locations')
+  const productIds = idList(input.productIds, 'products')
   const description = typeof input.description === 'string' ? input.description.trim().slice(0, 5000) : ''
   const releaseDate = typeof input.releaseDate === 'string' ? input.releaseDate.trim().slice(0, 40) : ''
   const access = ['free', 'paid', 'subscription'].includes(String(input.access)) ? String(input.access) : 'free'
@@ -182,7 +185,7 @@ export async function createIngestJob(store: IngestStore, bunny: BunnyClient, in
     : destination === 'video'
       ? { name: title, slug: slugify(title), status: 1, description: description || null, release_date: releaseDate || null, access, created_at: now, updated_at: now }
       : { name: title, entertainment_id: seriesId, season_id: seasonId, status: 1, description: description || null, release_date: releaseDate || null, access, created_at: now, updated_at: now })
-  await store.mapContent(table, contentId, { genreIds, castIds, locationIds })
+  await store.mapContent(table, contentId, { genreIds, castIds, locationIds, productIds })
 
   const jobId = await store.insertJob({
     dropbox_url: directGuid ? '' : String(input.url).trim(),

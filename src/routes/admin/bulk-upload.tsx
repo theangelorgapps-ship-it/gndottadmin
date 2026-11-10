@@ -27,12 +27,13 @@ const FIELDS: { value: BulkField; label: string }[] = [
   { value: 'description', label: 'Description' },
   { value: 'releaseDate', label: 'Release Date' },
   { value: 'access', label: 'Access' },
+  { value: 'products', label: 'Products (shop IDs)' },
 ]
 
-const TEMPLATE_HEADERS = ['Title', 'Destination', 'Video', 'Series', 'Season', 'Categories', 'Preacher', 'Location', 'Description', 'Release Date', 'Access']
+const TEMPLATE_HEADERS = ['Title', 'Destination', 'Video', 'Series', 'Season', 'Categories', 'Preacher', 'Location', 'Description', 'Release Date', 'Access', 'Products']
 const TEMPLATE_EXAMPLES = [
-  ['Easter Sunday 2026', 'Sermon', 'https://www.dropbox.com/s/abc123/easter.mp4?dl=0', '', '', 'Faith, Easter', 'Rev. Adams', 'London', 'The resurrection hope.', '2026-04-05', 'free'],
-  ['Romans Lesson 1', 'Teaching', '0443f5a5-de41-4536-b212-b15272a3cf86', 'Book of Romans', 'Volume 1', 'Doctrine', 'Rev. Adams', 'London', 'Introduction to Romans.', '2026-01-12', 'free'],
+  ['Easter Sunday 2026', 'Sermon', 'https://www.dropbox.com/s/abc123/easter.mp4?dl=0', '', '', 'Faith, Easter', 'Rev. Adams', 'London', 'The resurrection hope.', '2026-04-05', 'free', '32371'],
+  ['Romans Lesson 1', 'Teaching', '0443f5a5-de41-4536-b212-b15272a3cf86', 'Book of Romans', 'Volume 1', 'Doctrine', 'Rev. Adams', 'London', 'Introduction to Romans.', '2026-01-12', 'free', '32371; 33532'],
 ]
 
 const OUTCOME_LABEL: Record<BulkResult['outcome'], string> = {

@@ -120,7 +120,7 @@ function d1IngestStore(): IngestStore {
       if (!CONTENT_TABLES.includes(table)) throw new Error('Invalid content target.')
       await db().prepare(`UPDATE ${table} SET deleted_at = datetime('now') WHERE id = ?`).bind(id).run()
     },
-    async mapContent(table, id, { genreIds = [], castIds = [], locationIds = [] }) {
+    async mapContent(table, id, { genreIds = [], castIds = [], locationIds = [], productIds = [] }) {
       if (!CONTENT_TABLES.includes(table) || table === 'seasons') throw new Error('Invalid content target.')
       const stmts = []
       // Genres and personalities only have mapping tables for entertainments rows.
@@ -131,6 +131,15 @@ function d1IngestStore(): IngestStore {
       const contentType = table === 'entertainments' ? 'entertainment' : table === 'episodes' ? 'episode' : 'video'
       for (const lid of locationIds) stmts.push(db().prepare(`INSERT INTO content_location_mapping (content_type, content_id, location_id) VALUES (?, ?, ?)`).bind(contentType, id, lid))
       if (stmts.length) await db().batch(stmts)
+      // Shop products map onto the public app's content types (sermons are
+      // 'movie' rows in entertainments; episodes/videos map directly).
+      if (productIds.length) {
+        const productContentType = table === 'episodes' ? 'episode' : table === 'videos' ? 'video'
+          : (await first<{ type: string }>(`SELECT type FROM entertainments WHERE id = ?`, id))?.type
+        if (!productContentType || !['movie', 'tvshow', 'teaching', 'episode', 'video'].includes(productContentType)) throw new Error('Products cannot be attached to this content type.')
+        const productStmts = productIds.map(pid => db().prepare(`INSERT INTO content_products (content_type, content_id, product_id) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`).bind(productContentType, id, pid))
+        await db().batch(productStmts)
+      }
     },
   }
 }

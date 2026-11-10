@@ -6,6 +6,7 @@ import { useToast } from '../../lib/toast'
 import { AdminDataTable } from '../../components/AdminDataTable'
 import { AdminImagePreview } from '../../components/Poster'
 import { UploadButton, BunnyUploadButton } from '../../components/admin-content'
+import { ContentProductsPanel } from '../../components/ContentProductsPanel'
 import { RichTextEditor } from '../../components/RichTextEditor'
 
 export const Route = createFileRoute('/admin/videos')({
@@ -246,6 +247,9 @@ function AdminVideos() {
               </Field>
               <Field id="video-subtitle-file" label="Subtitle file" span>
                 <div className="img-field"><input id="video-subtitle-file" value={editing.subtitle_file ?? ''} disabled={busy} onChange={(event) => set({ subtitle_file: event.target.value })} /><UploadButton label="Subtitle" currentValue={editing.subtitle_file} accept=".vtt,.srt" parentBusy={busy} onBusyChange={handleUploadBusy} onDone={(url) => set({ subtitle_file: url })} /></div>
+              </Field>
+              <Field id="video-products" label="Products (Recommended Resources)" span>
+                <ContentProductsPanel contentType="video" contentId={editing.id} disabled={isBusy} />
               </Field>
               <Field id="video-meta-title" label="Meta title (SEO)" span>
                 <input id="video-meta-title" value={editing.meta_title ?? ''} disabled={busy} onChange={(event) => set({ meta_title: event.target.value })} />

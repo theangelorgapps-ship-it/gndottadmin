@@ -13,6 +13,7 @@ import {
 export type BulkField =
   | 'title' | 'destination' | 'video' | 'series' | 'season'
   | 'categories' | 'preacher' | 'location' | 'description' | 'releaseDate' | 'access'
+  | 'products'
 
 // Header auto-mapping: lowercase alias matching, tolerant of punctuation and plurals.
 export const HEADER_ALIASES: Record<BulkField, string[]> = {
@@ -27,6 +28,7 @@ export const HEADER_ALIASES: Record<BulkField, string[]> = {
   description: ['description', 'desc', 'summary', 'about'],
   releaseDate: ['release date', 'released', 'date'],
   access: ['access', 'pricing', 'price type'],
+  products: ['products', 'product', 'product ids', 'shop products', 'store products', 'recommended resources', 'resources'],
 }
 
 const normalizeHeader = (value: unknown): string =>
@@ -83,6 +85,19 @@ export function normalizeDestination(value: unknown): IngestDestination | null {
 const splitNames = (value: unknown): string[] =>
   String(value ?? '').split(/[;,]/).map(name => name.trim()).filter(Boolean).slice(0, 20)
 
+/** A products cell is comma/semicolon-separated WooCommerce product IDs. */
+export function parseProductIds(value: unknown): { ids: number[]; invalid: string[] } {
+  const tokens = String(value ?? '').split(/[;,]/).map(token => token.trim()).filter(Boolean).slice(0, 20)
+  const ids: number[] = []
+  const invalid: string[] = []
+  for (const token of tokens) {
+    const id = Number(token)
+    if (Number.isSafeInteger(id) && id > 0) { if (!ids.includes(id)) ids.push(id) }
+    else invalid.push(token)
+  }
+  return { ids: ids.slice(0, 12), invalid }
+}
+
 export type BulkRow = {
   index: number // 1-based spreadsheet row (header is row 1)
   title: string
@@ -96,6 +111,7 @@ export type BulkRow = {
   description: string
   releaseDate: string
   access: string
+  productIds: number[]
   errors: string[]
   warnings: string[]
 }
@@ -109,6 +125,7 @@ export function parseBulkRows(matrix: unknown[][], mapping: (BulkField | null)[]
       const column = mapping.indexOf(field)
       return column === -1 ? '' : String(cells[column] ?? '').trim()
     }
+    const products = parseProductIds(cells[mapping.indexOf('products')])
     const row: BulkRow = {
       index: r + 2,
       title: fieldOf('title').slice(0, 200),
@@ -122,6 +139,7 @@ export function parseBulkRows(matrix: unknown[][], mapping: (BulkField | null)[]
       description: fieldOf('description'),
       releaseDate: fieldOf('releaseDate').slice(0, 40),
       access: ['free', 'paid', 'subscription'].includes(normalizeHeader(fieldOf('access'))) ? normalizeHeader(fieldOf('access')) : 'free',
+      productIds: products.ids,
       errors: [],
       warnings: [],
     }
@@ -136,6 +154,8 @@ export function parseBulkRows(matrix: unknown[][], mapping: (BulkField | null)[]
     if (row.destination === 'video' && (row.categories.length || row.preachers.length)) {
       row.warnings.push('Categories and Preacher apply to sermons and series only; ignored for videos.')
     }
+    if (products.invalid.length) row.warnings.push(`Ignored invalid product IDs: ${products.invalid.join(', ')}.`)
+    if (products.ids.length > 12) row.warnings.push('Only the first 12 product IDs are attached.')
     rows.push(row)
   }
   return rows
@@ -161,7 +181,10 @@ export function revalidateBulkRows(rows: BulkRow[]): BulkRow[] {
     if ((destination === 'teaching' || destination === 'show') && !series) {
       errors.push(`${destination === 'teaching' ? 'Teaching' : 'Show'} rows need a Series name.`)
     }
-    return { ...row, title, destination, video, series, errors }
+    // Product IDs arrive from the client preview; re-derive safe integers only.
+    const productIds = (Array.isArray(row.productIds) ? row.productIds : [])
+      .map(Number).filter(id => Number.isSafeInteger(id) && id > 0).slice(0, 12)
+    return { ...row, title, destination, video, series, productIds, errors }
   })
 }
 
@@ -246,7 +269,7 @@ export async function importBulkRows(
           description: row.description || undefined,
           releaseDate: row.releaseDate || undefined,
           access: row.access,
-          genreIds, castIds, locationIds,
+          genreIds, castIds, locationIds, productIds: row.productIds,
         }
         results.push(await importOne(row, destination, input, deps, created))
         continue
@@ -259,7 +282,7 @@ export async function importBulkRows(
         description: row.description || undefined,
         releaseDate: row.releaseDate || undefined,
         access: row.access,
-        genreIds, castIds, locationIds,
+        genreIds, castIds, locationIds, productIds: row.productIds,
       }
       results.push(await importOne(row, destination, input, deps, created))
     } catch (e: any) {

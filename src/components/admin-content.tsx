@@ -7,6 +7,7 @@ import { useConfirm } from '../lib/confirm'
 import { useToast } from '../lib/toast'
 import { AdminDataTable } from './AdminDataTable'
 import { AdminImagePreview } from './Poster'
+import { ContentProductsPanel } from './ContentProductsPanel'
 import { UploadDialog } from './UploadDialog'
 import { RichTextEditor } from './RichTextEditor'
 import { orderPersonalities } from './CrudTable'
@@ -90,6 +91,7 @@ const FORM_TABS = [
   { key: 'pricing', label: 'Pricing' },
   { key: 'seo', label: 'SEO' },
   { key: 'cast', label: 'People & categories' },
+  { key: 'products', label: 'Products' },
 ] as const
 
 export function ContentAdmin({ items, type, title }: { items: any[]; type: 'movie' | 'tvshow' | 'teaching'; title: string }) {
@@ -521,6 +523,12 @@ export function ContentAdmin({ items, type, title }: { items: any[]; type: 'movi
                   </div>
                 </ChoiceGroup>
                 {!options && <p className="text-sm text-muted-foreground" role="status" style={{ gridColumn: '1 / -1' }}>Loading categories, personalities, and locations…</p>}
+              </div>
+            )}
+
+            {formTab === 'products' && (
+              <div className="form-grid" id="content-panel-products" role="tabpanel" aria-labelledby="content-tab-products">
+                <ContentProductsPanel contentType={type} contentId={editing.id} disabled={isBusy} />
               </div>
             )}
 
