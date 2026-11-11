@@ -1,9 +1,11 @@
 import { createServerFn } from '@tanstack/react-start'
-import { all, first } from './db'
+import { all, first, run } from './db'
 import { requireAdmin } from './admin'
 
 // Giving administration: donations from the player's Giving tab (Offering,
 // Tithe, Partnership — one-time or monthly, Seed), with totals per campaign.
+// Abandoned checkouts (pending > 24 h) are marked expired and hidden so the
+// tab reflects real gifts, not remount clutter.
 
 export type DonationRow = {
   id: string; name: string; email: string; country: string;
@@ -15,7 +17,8 @@ export const adminListDonations = createServerFn({ method: 'GET' })
   .validator((d: { kind?: string } | undefined) => ({ kind: d?.kind && ['offering', 'tithe', 'partner', 'seed'].includes(d.kind) ? d.kind : '' }))
   .handler(async ({ data }) => {
     await requireAdmin()
-    const where = data.kind ? `WHERE kind = ?` : ''
+    await run(`UPDATE donations SET status='expired' WHERE status='pending' AND created_at < datetime('now','-24 hours')`).catch(() => null)
+    const where = data.kind ? `WHERE kind = ? AND status != 'expired'` : `WHERE status != 'expired'`
     const params = data.kind ? [data.kind] : []
     const donations = await all<DonationRow>(
       `SELECT id, name, email, country, kind, frequency, amount_cents, currency, status, created_at, paid_at
